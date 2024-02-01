@@ -8,23 +8,43 @@ fn main() -> Result<()> {
         "phones": [
             "+44 1234567",
             "+44 2345678"
-        ]
+        ],
+        "pets": {
+            "frankie": {"species": "cat", "age": 3},
+            "bennie": {"species": "cat", "age": 9},
+        }
     });
 
-    get_path_values(&v);
+    let mut path_values = vec![];
+    get_path_values(&v, vec![], &mut path_values);
+
+    for v in &path_values {
+        println!("pathvalue: {:?}", v)
+    }
 
     Ok(())
 }
 
-fn get_path_values(v: &Value) {
-    match v {
-        Value::Array(a) => println!("found an array {:?}", a),
-        Value::Bool(b) => println!("found a bool {}", b),
-        Value::Null => println!("found a null"),
-        Value::Number(n) => println!("found a number {}", n),
-        Value::Object(o) => println!("Found an object {:?}", o),
-        Value::String(s) => println!("found a string {}", s),
+// get_path_values returns a Vector of (path, value) tuples. We use the json_serde::Value type
+// so we carry around some type information for later encoding.
+fn get_path_values<'a>(v: &'a Value, path: Vec<String>, acc: &mut Vec<(Vec<String>, &'a Value)>) {
+    let mut stack = vec![(v, path)];
+
+    while stack.len() > 0 {
+        let (v, path) = stack.pop().unwrap();
+        match v {
+            Value::Array(a) => println!("found an array (that we don't support yet) {:?}", a),
+            Value::Bool(_) => acc.push((path, v)),
+            Value::Null => acc.push((path, v)),
+            Value::Number(_) => acc.push((path, v)),
+            Value::Object(o) => {
+                for (k, v) in o {
+                    let mut p = path.clone();
+                    p.push(k.clone());
+                    stack.push((v, p))
+                }
+            }
+            Value::String(_) => acc.push((path, v)),
+        }
     }
-    // Access parts of the data by indexing with square brackets.
-    println!("Please call {} at the number {}", v["name"], v["phones"][0]);
 }
