@@ -38,34 +38,26 @@ enum PathComponent {
 // v is moved into get_path_values and any needed Values end up moved into the function's return value
 fn get_path_values(v: Value) -> Vec<(Vec<PathComponent>, Value)> {
     let mut acc = vec![];
-    let mut stack = vec![(v, vec![])];
+    let mut stack = vec![(vec![], v)];
 
     while stack.len() > 0 {
-        let (v, path) = stack.pop().unwrap();
+        let (path, v) = stack.pop().unwrap();
         match v {
             Value::Array(a) => {
                 for (i, v) in a.into_iter().enumerate() {
                     let mut p = path.clone();
                     p.push(PathComponent::ArrayIndex(i));
-                    stack.push((v, p))
+                    stack.push((p, v))
                 }
             }
-            Value::Bool(_) => acc.push((path, v)),
-            Value::Null => acc.push((path, v)),
-            Value::Number(_) => acc.push((path, v)),
             Value::Object(o) => {
-                // we consume o, and move k and v into
-                // our stack, and eventually to the
-                // accumulator. I think we have to clone
-                // path so we don't just add all the ks
-                // to the same path.
                 for (k, v) in o {
                     let mut p = path.clone();
                     p.push(PathComponent::String(k));
-                    stack.push((v, p))
+                    stack.push((p, v))
                 }
             }
-            Value::String(_) => acc.push((path, v)),
+            _ => acc.push((path, v)),
         }
     }
 
