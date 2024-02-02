@@ -15,11 +15,14 @@ fn main() -> Result<()> {
         }
     });
 
-    let mut path_values = vec![];
-    get_path_values(&v, vec![], &mut path_values);
+    // v is moved into get_path_values. This might not be possible
+    // if we later needed v, but we don't yet.
+    let path_values = get_path_values(v);
 
-    for v in &path_values {
-        println!("pathvalue: {:?}", v)
+    // Here we would be indexing the path_values, so we can
+    // consume them as we don't need them afterwards
+    for (path, v) in path_values {
+        println!("pathvalue: {:?} => {}", path, v)
     }
 
     Ok(())
@@ -27,8 +30,12 @@ fn main() -> Result<()> {
 
 // get_path_values returns a Vector of (path, value) tuples. We use the json_serde::Value type
 // so we carry around some type information for later encoding.
-fn get_path_values<'a>(v: &'a Value, path: Vec<String>, acc: &mut Vec<(Vec<String>, &'a Value)>) {
-    let mut stack = vec![(v, path)];
+// v is moved into get_path_values and any needed Values end up moved into the function's return value
+// For array support, we would put the array index into the path. Therefore we'd need to create an
+// enum that could hold either String or int and it would be the type in the path vector returned.
+fn get_path_values(v: Value) -> Vec<(Vec<String>, Value)> {
+    let mut acc = vec![];
+    let mut stack = vec![(v, vec![])];
 
     while stack.len() > 0 {
         let (v, path) = stack.pop().unwrap();
@@ -47,4 +54,6 @@ fn get_path_values<'a>(v: &'a Value, path: Vec<String>, acc: &mut Vec<(Vec<Strin
             Value::String(_) => acc.push((path, v)),
         }
     }
+
+    acc
 }
