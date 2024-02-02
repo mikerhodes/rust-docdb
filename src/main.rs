@@ -1,6 +1,8 @@
-use serde_json::{json, Result, Value};
+use serde_json::{json, Value};
+use sled::Db;
 
-fn main() -> Result<()> {
+fn main() -> serde_json::Result<()> {
+    let _ = new_database(std::path::Path::new("docdb.data"));
     // The type of `john` is `serde_json::Value`
     let v = json!({
         "name": "John Doe",
@@ -26,6 +28,26 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn new_database(path: &std::path::Path) -> sled::Result<Db> {
+    // return sled::open(path);
+    // works like std::fs::open
+    let db = sled::open(path)?;
+
+    // key and value types can be `Vec<u8>`, `[u8]`, or `str`.
+    let key = "my key";
+
+    // `generate_id`
+    let value = db.generate_id()?.to_be_bytes();
+
+    dbg!(
+        db.insert(key, &value)?, // as in BTreeMap::insert
+        db.get(key)?,            // as in BTreeMap::get
+        db.remove(key)?,         // as in BTreeMap::remove
+    );
+
+    Ok(db)
 }
 
 #[derive(Debug, Clone)]
