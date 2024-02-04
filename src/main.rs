@@ -64,7 +64,7 @@ fn new_database(path: &std::path::Path) -> sled::Result<Db> {
 
 #[derive(Debug, Clone)]
 enum PathComponent {
-    String(String),
+    FieldName(Rc<String>), // Rc<String> avoids cloning field name string buffers many times
     ArrayIndex(usize),
 }
 // get_path_values returns a Vector of (path, value) tuples. We use the json_serde::Value type
@@ -86,7 +86,7 @@ fn get_path_values(v: Value) -> Vec<(Vec<PathComponent>, Value)> {
             Value::Object(o) => {
                 for (k, v) in o {
                     let mut p = path.clone();
-                    p.push(PathComponent::String(k));
+                    p.push(PathComponent::FieldName(Rc::new(k)));
                     stack.push((p, v))
                 }
             }
