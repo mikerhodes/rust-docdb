@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use sled::Db;
 
 fn main() -> serde_json::Result<()> {
-    let _ = new_database(std::path::Path::new("docdb.data"));
+    let db = new_database(std::path::Path::new("docdb.data")).unwrap();
     // The type of `john` is `serde_json::Value`
     let v = json!({
         "name": "John Doe",
@@ -16,6 +16,14 @@ fn main() -> serde_json::Result<()> {
             "bennie": {"species": "cat", "age": 9},
         }
     });
+
+    // pack the json into msgpack for storage -- try round-tripping it
+    let buf = rmp_serde::to_vec(&v).unwrap();
+    db.insert("foo", buf);
+    let readvalue = db.get("foo").unwrap();
+    db.remove("foo");
+    let frommsgpack = rmp_serde::from_slice::<Value>(&readvalue.unwrap()).unwrap();
+    println!("{:?}", frommsgpack.to_string());
 
     // v is moved into get_path_values. This might not be possible
     // if we later needed v, but we don't yet.
