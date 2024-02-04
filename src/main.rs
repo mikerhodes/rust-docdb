@@ -74,8 +74,7 @@ fn get_path_values(v: Value) -> Vec<(Vec<PathComponent>, Value)> {
     let mut acc = vec![];
     let mut stack = vec![(vec![], v)];
 
-    while stack.len() > 0 {
-        let (path, v) = stack.pop().unwrap();
+    while let Some((path, v)) = stack.pop() {
         match v {
             Value::Array(a) => {
                 for (i, v) in a.into_iter().enumerate() {
