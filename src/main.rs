@@ -1,8 +1,11 @@
+use std::rc::Rc;
+
 use serde_json::{json, Value};
 use sled::Db;
 
 fn main() -> serde_json::Result<()> {
     let db = new_database(std::path::Path::new("docdb.data")).unwrap();
+
     // The type of `john` is `serde_json::Value`
     let v = json!({
         "name": "John Doe",
@@ -16,14 +19,26 @@ fn main() -> serde_json::Result<()> {
             "bennie": {"species": "cat", "age": 9},
         }
     });
+    let key = "foo".to_string();
+    insert_document(&db, &key, v);
+    get_document(&db, &key);
+    db.remove(&key);
 
-    // pack the json into msgpack for storage -- try round-tripping it
-    let buf = rmp_serde::to_vec(&v).unwrap();
-    db.insert("foo", buf);
-    let readvalue = db.get("foo").unwrap();
-    db.remove("foo");
+    Ok(())
+}
+
+// Retrieve a document from db by key.
+fn get_document(db: &Db, key: &String) {
+    let readvalue = db.get(key).unwrap();
     let frommsgpack = rmp_serde::from_slice::<Value>(&readvalue.unwrap()).unwrap();
-    println!("{:?}", frommsgpack.to_string());
+    println!("{}", frommsgpack.to_string());
+}
+
+// Insert and index v into db at key
+fn insert_document(db: &Db, key: &String, v: serde_json::Value) {
+    // pack the json into msgpack for storage
+    let buf = rmp_serde::to_vec(&v).unwrap();
+    db.insert(&key, buf);
 
     // v is moved into get_path_values. This might not be possible
     // if we later needed v, but we don't yet.
@@ -32,14 +47,11 @@ fn main() -> serde_json::Result<()> {
     // Here we would be indexing the path_values, so we can
     // consume them as we don't need them afterwards
     for (path, v) in path_values {
-        println!("pathvalue: {:?} => {}", path, v);
         println!("pathvalue: {:?} => {:?}", path, encode_tagged_value(v));
         // key = encode the key
         // value = encode the value
         // insert into the database
     }
-
-    Ok(())
 }
 
 fn new_database(path: &std::path::Path) -> sled::Result<Db> {
