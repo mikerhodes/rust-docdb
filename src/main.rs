@@ -3,6 +3,8 @@ use std::rc::Rc;
 use serde_json::{json, Value};
 use sled::Db;
 
+mod encoding;
+
 fn main() -> serde_json::Result<()> {
     let db = new_database(std::path::Path::new("docdb.data")).unwrap();
 
@@ -47,7 +49,11 @@ fn insert_document(db: &Db, key: &String, v: serde_json::Value) {
     // Here we would be indexing the path_values, so we can
     // consume them as we don't need them afterwards
     for (path, v) in path_values {
-        println!("pathvalue: {:?} => {:?}", path, encode_tagged_value(v));
+        println!(
+            "pathvalue: {:?} => {:?}",
+            path,
+            encoding::encode_tagged_value(v)
+        );
         // key = encode the key
         // value = encode the value
         // insert into the database
@@ -107,57 +113,4 @@ fn get_path_values(v: Value) -> Vec<(Vec<PathComponent>, Value)> {
     }
 
     acc
-}
-
-enum JsonTag {
-    // printable character makes easier debugging
-    Null = 0x28,   // char: (
-    False = 0x29,  // char: )
-    True = 0x2a,   // char: *
-    Number = 0x2b, // char: +
-    String = 0x2c, // char: ,
-}
-
-// encode_tagged_value encodes a primitive JSON type:
-// number, string, null and bool.
-// TODO copy the unit tests from the Go version
-// TODO return a Result<Vec<u8>>? So we can return an error
-//      if it's not the right type. Perhaps the type system
-//      can enforce it.
-fn encode_tagged_value(v: Value) -> Vec<u8> {
-    let mut tv = vec![];
-
-    match v {
-        Value::Null => tv.push(JsonTag::Null as u8),
-        Value::Bool(b) => match b {
-            true => tv.push(JsonTag::True as u8),
-            false => tv.push(JsonTag::False as u8),
-        },
-        Value::Number(n) => {
-            // This StackOverflow answer shows how to
-            // encode a float64 into a byte array that
-            // has the same sort order as the floats.
-            // https://stackoverflow.com/a/54557561
-            let fl = n.as_f64().unwrap();
-            let mut bits = fl.to_bits(); // creates a u64
-            if fl >= 0_f64 {
-                bits ^= 0x8000000000000000
-            } else {
-                bits ^= 0xffffffffffffffff
-            }
-            let buf = bits.to_be_bytes();
-
-            tv.push(JsonTag::Number as u8);
-            tv.extend_from_slice(&buf)
-        }
-        Value::String(s) => {
-            tv.push(JsonTag::String as u8);
-            tv.extend(s.into_bytes())
-        }
-        _ => {
-            println!("ERROR found object or array in encode_tagged_value!")
-        }
-    }
-
-    tv
 }
