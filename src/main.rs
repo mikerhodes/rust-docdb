@@ -5,7 +5,7 @@ use sled::Db;
 
 mod encoding;
 
-fn main() -> serde_json::Result<()> {
+fn main() -> Result<(), u16> {
     let db = new_database(std::path::Path::new("docdb.data")).unwrap();
 
     // The type of `john` is `serde_json::Value`
