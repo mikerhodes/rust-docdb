@@ -1,5 +1,32 @@
 use std::rc::Rc;
 
+pub fn encode_index_key(docid: &String, path: Vec<TaggableValue>, v: TaggableValue) -> Vec<u8> {
+    // we will push everything into the key using
+    // the tagged form. Paths must be tagged as they
+    // can contain strings and array indexes (ints).
+    // Tagging the value is obviously needed.
+    // As we've tagged everything else, we may as
+    // well tag the doc ID at the end too, so we
+    // can uniformly decode using generic functions.
+    // println!("pathvalue: {} {:?} => {:?}", docid, path, v,);
+    let mut pre_key = path;
+    pre_key.push(v);
+    pre_key.push(TaggableValue::String(docid.clone()));
+    // println!("pre_key: {:?}", pre_key);
+
+    let key: Vec<Vec<u8>> = pre_key
+        .into_iter()
+        .map(|x| encode_tagged_value(x))
+        .collect();
+
+    // TODO we need the prefix keys for the docs and the index.
+    // We could make those TaggableValue::KeyPrefix(u8) which
+    // just returns the u8?
+    let k = key.join(&0x00_u8);
+    // println!("k: {:?}", k);
+    k
+}
+
 enum JsonTag {
     // printable character makes easier debugging
     Null = 0x28,   // char: (
@@ -9,7 +36,7 @@ enum JsonTag {
     String = 0x2c, // char: ,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TaggableValue {
     Null,
     Bool(bool),
@@ -122,5 +149,63 @@ mod tests {
                 0x66, 0x6f, 0x6f, // foo
             ]
         );
+    }
+
+    #[test]
+    fn test_encode_key() {
+        assert_eq!(
+            encode_index_key(
+                &"foo".to_string(),
+                vec![
+                    TaggableValue::RcString(Rc::new("phones".to_string())),
+                    TaggableValue::Number(1.0)
+                ],
+                TaggableValue::String("+44 2345678".to_string())
+            ),
+            vec![
+                44, // JsonTag::String
+                112, 104, 111, 110, 101, 115, // phones
+                0,   // separator
+                43,  //JsonTag::Number
+                191, 240, 0, 0, 0, 0, 0, 0,  // 1.0
+                0,  // sep
+                44, //String
+                43, 52, 52, 32, 50, 51, 52, 53, 54, 55, 56, // phone no
+                0,  // sep
+                44, // String
+                102, 111, 111 // foo
+            ]
+        )
+    }
+
+    #[test]
+    fn test_encode_key2() {
+        assert_eq!(
+            encode_index_key(
+                &"foo".to_string(),
+                vec![
+                    TaggableValue::RcString(Rc::new("pets".to_string())),
+                    TaggableValue::RcString(Rc::new("bennie".to_string())),
+                    TaggableValue::RcString(Rc::new("age".to_string())),
+                ],
+                TaggableValue::Number(9.0),
+            ),
+            vec![
+                44, //String
+                112, 101, 116, 115, // pets
+                0,   // sep
+                44,  // String
+                98, 101, 110, 110, 105, 101, // bennie
+                0,   // sep
+                44,  // String
+                97, 103, 101, // age
+                0,   // sep
+                43,  // Number
+                192, 34, 0, 0, 0, 0, 0, 0,  // 9
+                0,  // sep
+                44, // String
+                102, 111, 111 // foo
+            ]
+        )
     }
 }
