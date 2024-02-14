@@ -1,5 +1,16 @@
 use std::rc::Rc;
 
+// These consts are used at the start of keys to differentiate
+// keys for primary document data from index data. They are
+// prefixed to the encoded keys.
+const KEY_DOCUMENT: u8 = 1u8;
+const KEY_INDEX: u8 = 2u8;
+
+pub fn encode_document_key(docid: &String) -> Vec<u8> {
+    let mut k: Vec<u8> = vec![KEY_DOCUMENT, 0x00];
+    k.extend(docid.as_bytes());
+    k
+}
 pub fn encode_index_key(docid: &String, path: Vec<TaggableValue>, v: TaggableValue) -> Vec<u8> {
     // we will push everything into the key using
     // the tagged form. Paths must be tagged as they
@@ -8,22 +19,14 @@ pub fn encode_index_key(docid: &String, path: Vec<TaggableValue>, v: TaggableVal
     // As we've tagged everything else, we may as
     // well tag the doc ID at the end too, so we
     // can uniformly decode using generic functions.
-    // println!("pathvalue: {} {:?} => {:?}", docid, path, v,);
-    let mut pre_key = path;
-    pre_key.push(v);
-    pre_key.push(TaggableValue::String(docid.clone()));
-    // println!("pre_key: {:?}", pre_key);
-
-    let key: Vec<Vec<u8>> = pre_key
-        .into_iter()
-        .map(|x| encode_tagged_value(x))
-        .collect();
-
-    // TODO we need the prefix keys for the docs and the index.
-    // We could make those TaggableValue::KeyPrefix(u8) which
-    // just returns the u8?
-    let k = key.join(&0x00_u8);
-    // println!("k: {:?}", k);
+    let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
+    for component in path {
+        k.extend(encode_tagged_value(component));
+        k.push(0x00);
+    }
+    k.extend(encode_tagged_value(v));
+    k.push(0x00);
+    k.extend(encode_tagged_value(TaggableValue::String(docid.clone())));
     k
 }
 
@@ -95,8 +98,18 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
-    // Here we have only the simplest of tests. We reserve more complex
-    // ones for when we are testing the full generation of keys.
+    #[test]
+    fn test_encode_document_key() {
+        let tests = vec![
+            ("foo".to_string(), vec![0x66, 0x6f, 0x6f]),
+            ("møkå".to_string(), vec![0x6d, 0xc3, 0xb8, 0x6b, 0xc3, 0xa5]),
+        ];
+        for t in tests {
+            let mut expected = vec![KEY_DOCUMENT, 0x00];
+            expected.extend(t.1);
+            assert_eq!(encode_document_key(&t.0), expected);
+        }
+    }
 
     #[test]
     fn test_encode_null() {
@@ -163,6 +176,8 @@ mod tests {
                 TaggableValue::String("+44 2345678".to_string())
             ),
             vec![
+                2,  // KEY_INDEX
+                0,  // separator
                 44, // JsonTag::String
                 112, 104, 111, 110, 101, 115, // phones
                 0,   // separator
@@ -191,6 +206,8 @@ mod tests {
                 TaggableValue::Number(9.0),
             ),
             vec![
+                2,  // KEY_INDEX
+                0,  // separator
                 44, //String
                 112, 101, 116, 115, // pets
                 0,   // sep

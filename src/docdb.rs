@@ -1,12 +1,12 @@
 use serde_json::Value;
 use sled::Db;
 
-use crate::encoding::encode_index_key;
+use crate::encoding::{encode_document_key, encode_index_key};
 use crate::pathvalues::get_path_values;
 
 // Retrieve a document from db by key.
-pub fn get_document(db: &Db, key: &String) -> Result<String, sled::Error> {
-    let readvalue = match db.get(key) {
+pub fn get_document(db: &Db, docid: &String) -> Result<String, sled::Error> {
+    let readvalue = match db.get(encode_document_key(docid)) {
         Ok(s) => s,
         Err(e) => return Err(e),
     };
@@ -21,7 +21,7 @@ pub fn insert_document(db: &Db, docid: &String, v: serde_json::Value) -> Result<
 
     // pack the json into msgpack for storage
     let buf = rmp_serde::to_vec(&v).unwrap();
-    batch.insert(docid.as_bytes(), buf);
+    batch.insert(encode_document_key(docid), buf);
 
     // v is moved into get_path_values. This might not be possible
     // if we later needed v, but we don't yet.
