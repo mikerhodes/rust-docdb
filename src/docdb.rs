@@ -5,7 +5,7 @@ use crate::encoding::{encode_document_key, encode_index_key};
 use crate::pathvalues::get_path_values;
 
 // Retrieve a document from db by key.
-pub fn get_document(db: &Db, docid: &String) -> Result<String, sled::Error> {
+pub fn get_document(db: &Db, docid: &str) -> Result<String, sled::Error> {
     let readvalue = match db.get(encode_document_key(docid)) {
         Ok(s) => s,
         Err(e) => return Err(e),
@@ -16,7 +16,7 @@ pub fn get_document(db: &Db, docid: &String) -> Result<String, sled::Error> {
 }
 
 // Insert and index v into db at key
-pub fn insert_document(db: &Db, docid: &String, v: serde_json::Value) -> Result<(), sled::Error> {
+pub fn insert_document(db: &Db, docid: &str, v: serde_json::Value) -> Result<(), sled::Error> {
     let mut batch = sled::Batch::default();
 
     // pack the json into msgpack for storage

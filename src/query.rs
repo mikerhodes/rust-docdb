@@ -37,42 +37,38 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         docdb::insert_document(
             &db,
-            &"doc1".to_string(),
+            "doc1",
             json!({"a":{"b": 1}, "name": "mike", "age": 40}),
         )?;
         docdb::insert_document(
             &db,
-            &"doc2".to_string(),
+            "doc2",
             json!({"a":{"c": 2}, "name": "john", "age": 24}),
         )?;
         docdb::insert_document(
             &db,
-            &"doc3".to_string(),
+            "doc3",
             json!({"a":{"c": 2}, "name": "john", "age": 110}),
         )?;
 
-        let ids = lookup_eq(
-            &db,
-            &vec!["name".to_string()],
-            &TaggableValue::String("john".to_string()),
-        )?;
+        let ids = lookup_eq(&db, &vec!["name".to_string()], &TaggableValue::from("john"))?;
         assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids);
         let ids = lookup_eq(
             &db,
             &vec!["a".to_string(), "b".to_string()],
-            &TaggableValue::Number(1.0),
+            &TaggableValue::from(1),
         )?;
         assert_eq!(vec!["doc1".to_string()], ids);
         let ids = lookup_eq(
             &db,
             &vec!["a".to_string(), "b".to_string()],
-            &TaggableValue::Number(2.0),
+            &TaggableValue::from(2),
         )?;
         assert_eq!(Vec::<String>::new(), ids);
         let ids = lookup_eq(
             &db,
             &vec!["a".to_string(), "c".to_string()],
-            &TaggableValue::Number(2.0),
+            &TaggableValue::from(2),
         )?;
         assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids);
 

@@ -18,12 +18,12 @@ impl Error for DecodeError {}
 const KEY_DOCUMENT: u8 = 1u8;
 const KEY_INDEX: u8 = 2u8;
 
-pub fn encode_document_key(docid: &String) -> Vec<u8> {
+pub fn encode_document_key(docid: &str) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_DOCUMENT, 0x00];
     k.extend(docid.as_bytes());
     k
 }
-pub fn encode_index_key(docid: &String, path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
+pub fn encode_index_key(docid: &str, path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     // we will push everything into the key using
     // the tagged form. Paths must be tagged as they
     // can contain strings and array indexes (ints).
@@ -38,7 +38,7 @@ pub fn encode_index_key(docid: &String, path: &Vec<TaggableValue>, v: &TaggableV
     }
     k.extend(encode_tagged_value(v));
     k.push(0x00);
-    k.extend(encode_tagged_value(&TaggableValue::String(docid.clone())));
+    k.extend(encode_tagged_value(&TaggableValue::from(docid)));
     k
 }
 
@@ -109,6 +109,19 @@ pub enum TaggableValue {
     RcString(Rc<String>), // Rc<String> avoids cloning field name string buffers
     // ArrayIndex(usize), // Can we encode a usize more easily?
     Number(f64),
+}
+
+// Shortens TaggableValue::String(str.to_string())
+impl From<&str> for TaggableValue {
+    fn from(s: &str) -> Self {
+        TaggableValue::String(s.to_string())
+    }
+}
+// Shortens TaggableValue::Number(1.0) or TaggableValue(int as f64)
+impl From<i64> for TaggableValue {
+    fn from(i: i64) -> Self {
+        TaggableValue::Number(i as f64)
+    }
 }
 
 // encode_tagged_value encodes a primitive JSON type:
@@ -196,7 +209,7 @@ mod tests {
     #[test]
     fn test_encode_number() {
         assert_eq!(
-            encode_tagged_value(&TaggableValue::Number(-1_f64)),
+            encode_tagged_value(&TaggableValue::from(-1)),
             vec![
                 0x2b, // JsonTag::Number
                 0x40, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff // -1
@@ -209,8 +222,8 @@ mod tests {
         let tests = vec![(1, 2), (-1, 1), (123, 321), (0, 1), (-1, 0)];
         for t in tests {
             assert!(
-                encode_tagged_value(&TaggableValue::Number(t.0 as f64))
-                    < encode_tagged_value(&TaggableValue::Number(t.1 as f64)),
+                encode_tagged_value(&TaggableValue::from(t.0))
+                    < encode_tagged_value(&TaggableValue::from(t.1)),
             );
         }
     }
@@ -218,7 +231,7 @@ mod tests {
     #[test]
     fn test_encode_string() {
         assert_eq!(
-            encode_tagged_value(&TaggableValue::String("foo".to_string())),
+            encode_tagged_value(&TaggableValue::from("foo")),
             vec![
                 0x2c, // JsonTag::String
                 0x66, 0x6f, 0x6f, // foo
@@ -233,9 +246,9 @@ mod tests {
                 &"foo".to_string(),
                 &vec![
                     TaggableValue::RcString(Rc::new("phones".to_string())),
-                    TaggableValue::Number(1.0)
+                    TaggableValue::from(1)
                 ],
-                &TaggableValue::String("+44 2345678".to_string())
+                &TaggableValue::from("+44 2345678")
             ),
             vec![
                 2,  // KEY_INDEX
@@ -265,7 +278,7 @@ mod tests {
                     TaggableValue::RcString(Rc::new("bennie".to_string())),
                     TaggableValue::RcString(Rc::new("age".to_string())),
                 ],
-                &TaggableValue::Number(9.0),
+                &TaggableValue::from(9),
             ),
             vec![
                 2,  // KEY_INDEX
