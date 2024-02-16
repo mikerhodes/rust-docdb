@@ -1,4 +1,16 @@
+use std::error::Error;
 use std::rc::Rc;
+use std::{fmt, str};
+
+// An error for decoding keys
+#[derive(Debug, Clone)]
+pub struct DecodeError;
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Error decoding key")
+    }
+}
+impl Error for DecodeError {}
 
 // These consts are used at the start of keys to differentiate
 // keys for primary document data from index data. They are
@@ -11,7 +23,7 @@ pub fn encode_document_key(docid: &String) -> Vec<u8> {
     k.extend(docid.as_bytes());
     k
 }
-pub fn encode_index_key(docid: &String, path: Vec<TaggableValue>, v: TaggableValue) -> Vec<u8> {
+pub fn encode_index_key(docid: &String, path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     // we will push everything into the key using
     // the tagged form. Paths must be tagged as they
     // can contain strings and array indexes (ints).
@@ -26,7 +38,57 @@ pub fn encode_index_key(docid: &String, path: Vec<TaggableValue>, v: TaggableVal
     }
     k.extend(encode_tagged_value(v));
     k.push(0x00);
-    k.extend(encode_tagged_value(TaggableValue::String(docid.clone())));
+    k.extend(encode_tagged_value(&TaggableValue::String(docid.clone())));
+    k
+}
+
+// Decodes the doc ID from index key k
+pub fn decode_index_key_docid(k: &[u8]) -> Result<&str, DecodeError> {
+    let last = k.split(|b| *b == 0x00).last();
+    match last {
+        Some(v) => decode_tagged_str(v),
+        None => Err(DecodeError),
+    }
+}
+
+// Decodes a tagged value into a &str
+fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
+    let (tag, tail) = tv.split_first().ok_or(DecodeError)?;
+    match *tag {
+        x if x == JsonTag::String as u8 => match str::from_utf8(tail) {
+            Ok(v) => Ok(v),
+            Err(_) => Err(DecodeError),
+        },
+        _ => Err(DecodeError),
+    }
+}
+
+// Encode an index key that is guaranteed to be the first key of indexed path and v.
+pub fn encode_index_query_start_key(path: &Vec<String>, v: &TaggableValue) -> Vec<u8> {
+    let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
+    for component in path {
+        k.extend(encode_tagged_value(&TaggableValue::String(
+            component.clone(),
+        )));
+        k.push(0x00);
+    }
+    k.extend(encode_tagged_value(v));
+    k.push(0x00);
+    k
+}
+
+// Encode an index key that is guaranteed to be after all values with given path and v, but
+// before any different path and v.
+pub fn encode_index_query_end_key(path: &Vec<String>, v: &TaggableValue) -> Vec<u8> {
+    let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
+    for component in path {
+        k.extend(encode_tagged_value(&TaggableValue::String(
+            component.clone(),
+        )));
+        k.push(0x00);
+    }
+    k.extend(encode_tagged_value(v));
+    k.push(0x01); // ie, 0x01 is always greater than the sep between path/value and doc ID
     k
 }
 
@@ -54,7 +116,7 @@ pub enum TaggableValue {
 // TODO return a Result<Vec<u8>>? So we can return an error
 //      if it's not the right type. Perhaps the type system
 //      can enforce it.
-pub fn encode_tagged_value(v: TaggableValue) -> Vec<u8> {
+pub fn encode_tagged_value(v: &TaggableValue) -> Vec<u8> {
     let mut tv = vec![];
 
     match v {
@@ -68,7 +130,7 @@ pub fn encode_tagged_value(v: TaggableValue) -> Vec<u8> {
             // encode a float64 into a byte array that
             // has the same sort order as the floats.
             // https://stackoverflow.com/a/54557561
-            let fl = n;
+            let fl = *n;
             let mut bits = fl.to_bits(); // creates a u64
             if fl >= 0_f64 {
                 bits ^= 0x8000000000000000
@@ -82,11 +144,11 @@ pub fn encode_tagged_value(v: TaggableValue) -> Vec<u8> {
         }
         TaggableValue::String(s) => {
             tv.push(JsonTag::String as u8);
-            tv.extend(s.into_bytes())
+            tv.extend(s.as_bytes())
         }
         TaggableValue::RcString(s) => {
             tv.push(JsonTag::String as u8);
-            tv.extend((*s).clone().into_bytes())
+            tv.extend(s.as_bytes())
         }
     }
 
@@ -114,7 +176,7 @@ mod tests {
     #[test]
     fn test_encode_null() {
         assert_eq!(
-            encode_tagged_value(TaggableValue::Null),
+            encode_tagged_value(&TaggableValue::Null),
             vec![JsonTag::Null as u8]
         );
     }
@@ -122,11 +184,11 @@ mod tests {
     #[test]
     fn test_encode_bool() {
         assert_eq!(
-            encode_tagged_value(TaggableValue::Bool(true)),
+            encode_tagged_value(&TaggableValue::Bool(true)),
             vec![JsonTag::True as u8]
         );
         assert_eq!(
-            encode_tagged_value(TaggableValue::Bool(false)),
+            encode_tagged_value(&TaggableValue::Bool(false)),
             vec![JsonTag::False as u8]
         );
     }
@@ -134,7 +196,7 @@ mod tests {
     #[test]
     fn test_encode_number() {
         assert_eq!(
-            encode_tagged_value(TaggableValue::Number(-1_f64)),
+            encode_tagged_value(&TaggableValue::Number(-1_f64)),
             vec![
                 0x2b, // JsonTag::Number
                 0x40, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff // -1
@@ -147,8 +209,8 @@ mod tests {
         let tests = vec![(1, 2), (-1, 1), (123, 321), (0, 1), (-1, 0)];
         for t in tests {
             assert!(
-                encode_tagged_value(TaggableValue::Number(t.0 as f64))
-                    < encode_tagged_value(TaggableValue::Number(t.1 as f64)),
+                encode_tagged_value(&TaggableValue::Number(t.0 as f64))
+                    < encode_tagged_value(&TaggableValue::Number(t.1 as f64)),
             );
         }
     }
@@ -156,7 +218,7 @@ mod tests {
     #[test]
     fn test_encode_string() {
         assert_eq!(
-            encode_tagged_value(TaggableValue::String("foo".to_string())),
+            encode_tagged_value(&TaggableValue::String("foo".to_string())),
             vec![
                 0x2c, // JsonTag::String
                 0x66, 0x6f, 0x6f, // foo
@@ -169,11 +231,11 @@ mod tests {
         assert_eq!(
             encode_index_key(
                 &"foo".to_string(),
-                vec![
+                &vec![
                     TaggableValue::RcString(Rc::new("phones".to_string())),
                     TaggableValue::Number(1.0)
                 ],
-                TaggableValue::String("+44 2345678".to_string())
+                &TaggableValue::String("+44 2345678".to_string())
             ),
             vec![
                 2,  // KEY_INDEX
@@ -198,12 +260,12 @@ mod tests {
         assert_eq!(
             encode_index_key(
                 &"foo".to_string(),
-                vec![
+                &vec![
                     TaggableValue::RcString(Rc::new("pets".to_string())),
                     TaggableValue::RcString(Rc::new("bennie".to_string())),
                     TaggableValue::RcString(Rc::new("age".to_string())),
                 ],
-                TaggableValue::Number(9.0),
+                &TaggableValue::Number(9.0),
             ),
             vec![
                 2,  // KEY_INDEX
