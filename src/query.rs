@@ -70,8 +70,11 @@ impl From<Rc<String>> for TaggableValue {
 
 // QP is a query predicate. A query is a list of
 // QPs that are ANDed together.
-pub enum QP<'a> {
-    E { p: Vec<&'a str>, v: TaggableValue },
+pub enum QP {
+    E {
+        p: Vec<TaggableValue>,
+        v: TaggableValue,
+    },
     // GT {
     //     p: Vec<TaggableValue>,
     //     v: TaggableValue,
@@ -90,7 +93,7 @@ pub enum QP<'a> {
     // },
 }
 
-pub type Query<'a> = Vec<QP<'a>>;
+pub type Query = Vec<QP>;
 
 pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, sled::Error> {
     // I think Query here is a one-time use thing, so we should own it. Db
@@ -124,7 +127,11 @@ pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, sled::Error> {
     Ok(result)
 }
 
-fn lookup_eq(db: &Db, path: Vec<&str>, v: TaggableValue) -> Result<Vec<String>, sled::Error> {
+fn lookup_eq(
+    db: &Db,
+    path: Vec<TaggableValue>,
+    v: TaggableValue,
+) -> Result<Vec<String>, sled::Error> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_start_key(&path, &v);
     let end_key = encoding::encode_index_query_end_key(&path, &v);
@@ -142,7 +149,7 @@ fn lookup_eq(db: &Db, path: Vec<&str>, v: TaggableValue) -> Result<Vec<String>, 
 
 #[cfg(test)]
 mod tests {
-    use crate::docdb;
+    use crate::{docdb, keypath};
     use serde_json::json;
     use tempfile::tempdir;
 
@@ -168,13 +175,13 @@ mod tests {
             json!({"a":{"c": 2}, "name": "john", "age": 110}),
         )?;
 
-        let ids = lookup_eq(&db, vec!["name"], tv("john"))?;
+        let ids = lookup_eq(&db, keypath!["name"], tv("john"))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
-        let ids = lookup_eq(&db, vec!["a", "b"], tv(1))?;
+        let ids = lookup_eq(&db, keypath!["a", "b"], tv(1))?;
         assert_eq!(vec!["doc1"], ids);
-        let ids = lookup_eq(&db, vec!["a", "b"], tv(2))?;
+        let ids = lookup_eq(&db, keypath!["a", "b"], tv(2))?;
         assert_eq!(Vec::<String>::new(), ids);
-        let ids = lookup_eq(&db, vec!["a", "c"], tv(2))?;
+        let ids = lookup_eq(&db, keypath!["a", "c"], tv(2))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
 
         Ok(())

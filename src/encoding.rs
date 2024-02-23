@@ -3,6 +3,16 @@ use std::{fmt, str};
 
 use crate::query::TaggableValue;
 
+// cribbed from https://stackoverflow.com/a/75994861 --- this
+// allows us to create a vec of TaggableValues from normal
+// variables and literals.
+#[macro_export]
+macro_rules! keypath {
+    () => { vec![] };
+    ($elem:expr; $n:expr) => { vec![TaggableValue::from($elem); $n] };
+    ($($x:expr),+ $(,)?) => { vec![$(TaggableValue::from($x)),+] };
+}
+
 // An error for decoding keys
 #[derive(Debug, Clone)]
 pub struct DecodeError;
@@ -65,11 +75,10 @@ fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
 }
 
 // Encode an index key that is guaranteed to be the first key of indexed path and v.
-pub fn encode_index_query_start_key(path: &Vec<&str>, v: &TaggableValue) -> Vec<u8> {
+pub fn encode_index_query_start_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        let tv = TaggableValue::from(*component);
-        k.extend(encode_tagged_value(&tv));
+        k.extend(encode_tagged_value(&component));
         k.push(0x00);
     }
     k.extend(encode_tagged_value(v));
@@ -79,11 +88,10 @@ pub fn encode_index_query_start_key(path: &Vec<&str>, v: &TaggableValue) -> Vec<
 
 // Encode an index key that is guaranteed to be after all values with given path and v, but
 // before any different path and v.
-pub fn encode_index_query_end_key(path: &Vec<&str>, v: &TaggableValue) -> Vec<u8> {
+pub fn encode_index_query_end_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        let tv = TaggableValue::from(*component);
-        k.extend(encode_tagged_value(&tv));
+        k.extend(encode_tagged_value(&component));
         k.push(0x00);
     }
     k.extend(encode_tagged_value(v));
@@ -265,6 +273,20 @@ mod tests {
                 44, // String
                 102, 111, 111 // foo
             ]
+        )
+    }
+
+    #[test]
+    fn test_encode_array_key() {
+        assert_eq!(
+            encode_index_key(&"foo".to_string(), &keypath!["pet", 1], &tv("cat")),
+            vec![
+                2, 0, // index key
+                44, 112, 101, 116, 0, // string pet
+                43, 191, 240, 0, 0, 0, 0, 0, 0, 0, // number 1.0
+                44, 99, 97, 116, 0, // string cat
+                44, 102, 111, 111 // string foo
+            ],
         )
     }
 }
