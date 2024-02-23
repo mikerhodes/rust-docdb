@@ -1,4 +1,4 @@
-use crate::encoding::TaggableValue;
+use crate::query::TaggableValue;
 use serde_json::Value;
 use std::rc::Rc;
 

@@ -1,6 +1,7 @@
 use std::error::Error;
-use std::rc::Rc;
 use std::{fmt, str};
+
+use crate::query::TaggableValue;
 
 // An error for decoding keys
 #[derive(Debug, Clone)]
@@ -64,12 +65,11 @@ fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
 }
 
 // Encode an index key that is guaranteed to be the first key of indexed path and v.
-pub fn encode_index_query_start_key(path: &Vec<String>, v: &TaggableValue) -> Vec<u8> {
+pub fn encode_index_query_start_key(path: &Vec<&str>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&TaggableValue::String(
-            component.clone(),
-        )));
+        let tv = TaggableValue::from(*component);
+        k.extend(encode_tagged_value(&tv));
         k.push(0x00);
     }
     k.extend(encode_tagged_value(v));
@@ -79,12 +79,11 @@ pub fn encode_index_query_start_key(path: &Vec<String>, v: &TaggableValue) -> Ve
 
 // Encode an index key that is guaranteed to be after all values with given path and v, but
 // before any different path and v.
-pub fn encode_index_query_end_key(path: &Vec<String>, v: &TaggableValue) -> Vec<u8> {
+pub fn encode_index_query_end_key(path: &Vec<&str>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&TaggableValue::String(
-            component.clone(),
-        )));
+        let tv = TaggableValue::from(*component);
+        k.extend(encode_tagged_value(&tv));
         k.push(0x00);
     }
     k.extend(encode_tagged_value(v));
@@ -99,29 +98,6 @@ enum JsonTag {
     True = 0x2a,   // char: *
     Number = 0x2b, // char: +
     String = 0x2c, // char: ,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TaggableValue {
-    Null,
-    Bool(bool),
-    String(String),
-    RcString(Rc<String>), // Rc<String> avoids cloning field name string buffers
-    // ArrayIndex(usize), // Can we encode a usize more easily?
-    Number(f64),
-}
-
-// Shortens TaggableValue::String(str.to_string())
-impl From<&str> for TaggableValue {
-    fn from(s: &str) -> Self {
-        TaggableValue::String(s.to_string())
-    }
-}
-// Shortens TaggableValue::Number(1.0) or TaggableValue(int as f64)
-impl From<i64> for TaggableValue {
-    fn from(i: i64) -> Self {
-        TaggableValue::Number(i as f64)
-    }
 }
 
 // encode_tagged_value encodes a primitive JSON type:
@@ -172,6 +148,7 @@ pub fn encode_tagged_value(v: &TaggableValue) -> Vec<u8> {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use std::rc::Rc;
 
     #[test]
     fn test_encode_document_key() {
