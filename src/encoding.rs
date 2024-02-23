@@ -6,11 +6,25 @@ use crate::query::TaggableValue;
 // cribbed from https://stackoverflow.com/a/75994861 --- this
 // allows us to create a vec of TaggableValues from normal
 // variables and literals.
+// #[macro_export]
+// macro_rules! keypath {
+//     () => { vec![] };
+//     ($elem:expr; $n:expr) => { vec![TaggableValue::from($elem); $n] };
+//     ($($x:expr),+ $(,)?) => { vec![$(TaggableValue::from($x)),+] };
+// }
+
+// Let's use this one. I can actually understand it, learner that I am.
 #[macro_export]
 macro_rules! keypath {
-    () => { vec![] };
-    ($elem:expr; $n:expr) => { vec![TaggableValue::from($elem); $n] };
-    ($($x:expr),+ $(,)?) => { vec![$(TaggableValue::from($x)),+] };
+    ( $( $x:expr ),* ) => {
+        {
+            let mut temp_vec = Vec::<TaggableValue>::new();
+            $(
+                temp_vec.push(TaggableValue::from($x));
+            )*
+            temp_vec
+        }
+    };
 }
 
 // An error for decoding keys
