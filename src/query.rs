@@ -14,6 +14,22 @@ pub enum TaggableValue {
     Number(f64),
 }
 
+pub fn tv<T: Into<TaggableValue>>(v: T) -> TaggableValue {
+    v.into()
+}
+
+// impl From<null> for TaggableValue {
+//     fn from(value: null) -> Self {
+//         TaggableValue::Null
+//     }
+// }
+
+impl From<bool> for TaggableValue {
+    fn from(value: bool) -> Self {
+        TaggableValue::Bool(value)
+    }
+}
+
 // Shortens TaggableValue::String(str.to_string())
 impl From<&str> for TaggableValue {
     fn from(s: &str) -> Self {
@@ -26,6 +42,31 @@ impl From<i64> for TaggableValue {
         TaggableValue::Number(i as f64)
     }
 }
+
+impl From<f64> for TaggableValue {
+    fn from(value: f64) -> Self {
+        TaggableValue::Number(value)
+    }
+}
+
+impl From<String> for TaggableValue {
+    fn from(value: String) -> Self {
+        TaggableValue::String(value)
+    }
+}
+
+impl From<Rc<String>> for TaggableValue {
+    fn from(value: Rc<String>) -> Self {
+        TaggableValue::RcString(value)
+    }
+}
+
+// TODO ergonomically TaggableValue shouldn't be a thing
+// that external users see. But we do need to restrict the
+// types that users can put into it.
+// maybe we should have `into` from a lot of things and the
+// generic thing here is <T: Into<TaggableValue>>
+// But we can't have generics in the enum definition.
 
 // QP is a query predicate. A query is a list of
 // QPs that are ANDed together.
@@ -124,13 +165,13 @@ mod tests {
             json!({"a":{"c": 2}, "name": "john", "age": 110}),
         )?;
 
-        let ids = lookup_eq(&db, vec!["name"], TaggableValue::from("john"))?;
+        let ids = lookup_eq(&db, vec!["name"], tv("john"))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
-        let ids = lookup_eq(&db, vec!["a", "b"], TaggableValue::from(1))?;
+        let ids = lookup_eq(&db, vec!["a", "b"], tv(1))?;
         assert_eq!(vec!["doc1"], ids);
-        let ids = lookup_eq(&db, vec!["a", "b"], TaggableValue::from(2))?;
+        let ids = lookup_eq(&db, vec!["a", "b"], tv(2))?;
         assert_eq!(Vec::<String>::new(), ids);
-        let ids = lookup_eq(&db, vec!["a", "c"], TaggableValue::from(2))?;
+        let ids = lookup_eq(&db, vec!["a", "c"], tv(2))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
 
         Ok(())

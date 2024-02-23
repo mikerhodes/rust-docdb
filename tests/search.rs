@@ -1,6 +1,6 @@
 use rust_docdb::docdb;
 use rust_docdb::query;
-use rust_docdb::query::TaggableValue;
+use rust_docdb::query::tv;
 use serde_json::json;
 use sled;
 use tempfile::tempdir;
@@ -29,7 +29,7 @@ fn searching() -> Result<(), sled::Error> {
         &db,
         vec![query::QP::E {
             p: vec!["name"],
-            v: TaggableValue::from("john"),
+            v: tv("john"),
         }],
     )?;
     assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids);

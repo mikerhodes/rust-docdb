@@ -146,6 +146,8 @@ pub fn encode_tagged_value(v: &TaggableValue) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use crate::query::tv;
+
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use std::rc::Rc;
@@ -173,20 +175,14 @@ mod tests {
 
     #[test]
     fn test_encode_bool() {
-        assert_eq!(
-            encode_tagged_value(&TaggableValue::Bool(true)),
-            vec![JsonTag::True as u8]
-        );
-        assert_eq!(
-            encode_tagged_value(&TaggableValue::Bool(false)),
-            vec![JsonTag::False as u8]
-        );
+        assert_eq!(encode_tagged_value(&tv(true)), vec![JsonTag::True as u8]);
+        assert_eq!(encode_tagged_value(&tv(false)), vec![JsonTag::False as u8]);
     }
 
     #[test]
     fn test_encode_number() {
         assert_eq!(
-            encode_tagged_value(&TaggableValue::from(-1)),
+            encode_tagged_value(&tv(-1)),
             vec![
                 0x2b, // JsonTag::Number
                 0x40, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff // -1
@@ -198,17 +194,14 @@ mod tests {
     fn test_encode_number_ordering() {
         let tests = vec![(1, 2), (-1, 1), (123, 321), (0, 1), (-1, 0)];
         for t in tests {
-            assert!(
-                encode_tagged_value(&TaggableValue::from(t.0))
-                    < encode_tagged_value(&TaggableValue::from(t.1)),
-            );
+            assert!(encode_tagged_value(&tv(t.0)) < encode_tagged_value(&tv(t.1)),);
         }
     }
 
     #[test]
     fn test_encode_string() {
         assert_eq!(
-            encode_tagged_value(&TaggableValue::from("foo")),
+            encode_tagged_value(&tv("foo")),
             vec![
                 0x2c, // JsonTag::String
                 0x66, 0x6f, 0x6f, // foo
@@ -221,11 +214,8 @@ mod tests {
         assert_eq!(
             encode_index_key(
                 &"foo".to_string(),
-                &vec![
-                    TaggableValue::RcString(Rc::new("phones".to_string())),
-                    TaggableValue::from(1)
-                ],
-                &TaggableValue::from("+44 2345678")
+                &vec![tv(Rc::new("phones".to_string())), tv(1)],
+                &tv("+44 2345678")
             ),
             vec![
                 2,  // KEY_INDEX
@@ -251,11 +241,11 @@ mod tests {
             encode_index_key(
                 &"foo".to_string(),
                 &vec![
-                    TaggableValue::RcString(Rc::new("pets".to_string())),
-                    TaggableValue::RcString(Rc::new("bennie".to_string())),
-                    TaggableValue::RcString(Rc::new("age".to_string())),
+                    tv(Rc::new("pets".to_string())),
+                    tv(Rc::new("bennie".to_string())),
+                    tv(Rc::new("age".to_string())),
                 ],
-                &TaggableValue::from(9),
+                &tv(9),
             ),
             vec![
                 2,  // KEY_INDEX
