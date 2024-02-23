@@ -34,5 +34,43 @@ fn searching() -> Result<(), sled::Error> {
     )?;
     assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids);
 
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::E {
+                p: vec!["name"],
+                v: tv("john"),
+            },
+            query::QP::E {
+                p: vec!["age"],
+                v: tv(110),
+            },
+            query::QP::E {
+                p: vec!["a", "c"],
+                v: tv(2),
+            },
+        ],
+    )?;
+    assert_eq!(vec!["doc3".to_string()], ids);
+
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::E {
+                p: vec!["name"],
+                v: tv("john"),
+            },
+            query::QP::E {
+                p: vec!["age"],
+                v: tv(110),
+            },
+            query::QP::E {
+                p: vec!["a", "c"],
+                v: tv(1), // this results in no matches
+            },
+        ],
+    )?;
+    assert_eq!(Vec::<String>::new(), ids);
+
     Ok(())
 }

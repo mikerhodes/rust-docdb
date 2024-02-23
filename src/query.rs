@@ -95,6 +95,9 @@ pub type Query<'a> = Vec<QP<'a>>;
 pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, sled::Error> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
+
+    // BTreeMap so we return IDs to caller in the same order we read them
+    // from the database
     let mut result_ids = BTreeMap::new();
     let mut n_preds = 0;
 
