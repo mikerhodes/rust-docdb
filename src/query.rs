@@ -79,10 +79,10 @@ pub enum QP {
     //     p: Vec<TaggableValue>,
     //     v: TaggableValue,
     // },
-    // GTE {
-    //     p: Vec<TaggableValue>,
-    //     v: TaggableValue,
-    // },
+    GTE {
+        p: Vec<TaggableValue>,
+        v: TaggableValue,
+    },
     // LT {
     //     p: Vec<TaggableValue>,
     //     v: TaggableValue,
@@ -99,21 +99,19 @@ pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, sled::Error> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
 
-    // BTreeMap so we return IDs to caller in the same order we read them
-    // from the database
+    // BTreeMap so we return IDs to caller in order
     let mut result_ids = BTreeMap::new();
     let mut n_preds = 0;
 
     for qp in q {
         n_preds += 1;
-        match qp {
-            QP::E { p, v } => {
-                let ids = lookup_eq(db, p, v)?;
-                for id in ids {
-                    let count = result_ids.entry(id).or_insert(0);
-                    *count += 1;
-                }
-            }
+        let ids = match qp {
+            QP::E { p, v } => lookup_eq(db, p, v)?,
+            QP::GTE { p, v } => lookup_gte(db, p, v)?,
+        };
+        for id in ids {
+            let count = result_ids.entry(id).or_insert(0);
+            *count += 1;
         }
     }
 
@@ -133,8 +131,28 @@ fn lookup_eq(
     v: TaggableValue,
 ) -> Result<Vec<String>, sled::Error> {
     let mut ids = vec![];
-    let start_key = encoding::encode_index_query_start_key(&path, &v);
-    let end_key = encoding::encode_index_query_end_key(&path, &v);
+    let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
+    let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
+
+    let iter = db.range(start_key..end_key);
+    for i in iter {
+        let (k, _) = i?;
+        match encoding::decode_index_key_docid(&k) {
+            Ok(v) => ids.push(v.to_string()),
+            Err(_) => println!("Couldn't decode docID from {:?}", &k),
+        };
+    }
+    Ok(ids)
+}
+
+fn lookup_gte(
+    db: &Db,
+    path: Vec<TaggableValue>,
+    v: TaggableValue,
+) -> Result<Vec<String>, sled::Error> {
+    let mut ids = vec![];
+    let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
+    let end_key = encoding::encode_index_query_p_end_key(&path);
 
     let iter = db.range(start_key..end_key);
     for i in iter {
@@ -155,10 +173,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn lookup_eq_test() -> Result<(), sled::Error> {
-        let tmp_dir = tempdir().unwrap();
-        let db = docdb::new_database(tmp_dir.path()).unwrap();
+    fn insert_test_data(db: &Db) -> Result<(), sled::Error> {
         docdb::insert_document(
             &db,
             "doc1",
@@ -174,6 +189,14 @@ mod tests {
             "doc3",
             json!({"a":{"c": 2}, "name": "john", "age": 110}),
         )?;
+        Ok(())
+    }
+
+    #[test]
+    fn lookup_eq_test() -> Result<(), sled::Error> {
+        let tmp_dir = tempdir().unwrap();
+        let db = docdb::new_database(tmp_dir.path()).unwrap();
+        insert_test_data(&db)?;
 
         let ids = lookup_eq(&db, keypath!["name"], tv("john"))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
@@ -183,6 +206,37 @@ mod tests {
         assert_eq!(Vec::<String>::new(), ids);
         let ids = lookup_eq(&db, keypath!["a", "c"], tv(2))?;
         assert_eq!(vec!["doc2", "doc3"], ids);
+
+        Ok(())
+    }
+    #[test]
+    fn lookup_gte_test() -> Result<(), sled::Error> {
+        let tmp_dir = tempdir().unwrap();
+        let db = docdb::new_database(tmp_dir.path()).unwrap();
+        insert_test_data(&db)?;
+
+        let ids = lookup_gte(&db, keypath!["age"], tv(25))?;
+        assert_eq!(vec!["doc1", "doc3"], ids);
+        let ids = lookup_gte(&db, keypath!["name"], tv("mi"))?;
+        assert_eq!(vec!["doc1"], ids);
+        // Expected IDs are sorted in index order intentionally
+        let ids = lookup_gte(&db, keypath!["name"], tv("john"))?;
+        assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
+        let ids = lookup_gte(&db, keypath!["name"], tv(100_000_000))?;
+        assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
+        let ids = lookup_gte(&db, keypath!["name"], tv(false))?;
+        assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
+        let ids = lookup_gte(&db, keypath!["name"], tv(true))?;
+        assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
+        let ids = lookup_gte(&db, keypath!["name"], tv("azzzzzzzzz"))?;
+        assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
+
+        let ids = lookup_gte(&db, keypath!["age"], tv("a"))?;
+        assert_eq!(Vec::<String>::new(), ids);
+        let ids = lookup_gte(&db, keypath!["age"], tv(false))?;
+        assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
+        let ids = lookup_gte(&db, keypath!["age"], tv(true))?;
+        assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
 
         Ok(())
     }

@@ -165,3 +165,64 @@ fn query_array_eq() -> Result<(), sled::Error> {
 
     Ok(())
 }
+
+#[test]
+fn query_gte() -> Result<(), sled::Error> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::GTE {
+            p: keypath!["name"],
+            v: tv("john"),
+        }],
+    )?;
+    assert_eq!(
+        vec!["doc1".to_string(), "doc2".to_string(), "doc3".to_string()],
+        ids
+    );
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::GTE {
+                p: keypath!["name"],
+                v: tv("john"),
+            },
+            query::QP::GTE {
+                p: keypath!["age"],
+                v: tv(50),
+            },
+        ],
+    )?;
+    assert_eq!(vec!["doc3".to_string()], ids);
+
+    docdb::insert_document(&db, "arrayed", json!({"arr": [1,2,"foo",4]}))?;
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::GTE {
+            p: keypath!["arr", 2],
+            v: tv(-1),
+        }],
+    )?;
+    assert_eq!(vec!["arrayed".to_string()], ids);
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::GTE {
+            p: keypath!["arr", 2],
+            v: tv(-1),
+        }],
+    )?;
+    assert_eq!(vec!["arrayed".to_string()], ids);
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::GTE {
+            p: keypath!["arr", 2],
+            v: tv("bar"),
+        }],
+    )?;
+    assert_eq!(vec!["arrayed".to_string()], ids);
+
+    Ok(())
+}
