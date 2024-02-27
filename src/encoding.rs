@@ -112,7 +112,8 @@ pub fn encode_index_query_pv_end_key(path: &Vec<TaggableValue>, v: &TaggableValu
     k.push(0x01); // ie, 0x01 is always greater than the sep between path/value and doc ID
     k
 }
-// Encode an index key that is guaranteed to be after all values with given path, but
+// Encode an index key that is guaranteed to be after all values with
+// given path, but
 // before any different path and v.
 pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
@@ -122,6 +123,17 @@ pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     }
     let last = k.len() - 1;
     k[last] = 0x01;
+    k
+}
+
+// Encode an index key that is guaranteed to be the lower
+// bound of keys with a given path.
+pub fn encode_index_query_p_start_key(path: &Vec<TaggableValue>) -> Vec<u8> {
+    let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
+    for component in path {
+        k.extend(encode_tagged_value(&component));
+        k.push(0x00);
+    }
     k
 }
 

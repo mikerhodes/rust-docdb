@@ -243,3 +243,37 @@ fn query_gt() -> Result<(), sled::Error> {
     assert_eq!(vec!["doc1".to_string()], ids);
     Ok(())
 }
+
+#[test]
+fn query_lt() -> Result<(), sled::Error> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::LT {
+            p: keypath!["age"],
+            v: tv(40),
+        }],
+    )?;
+    assert_eq!(vec!["doc2".to_string()], ids);
+    Ok(())
+}
+
+#[test]
+fn query_lte() -> Result<(), sled::Error> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::LTE {
+            p: keypath!["age"],
+            v: tv(40),
+        }],
+    )?;
+    assert_eq!(vec!["doc1".to_string(), "doc2".to_string()], ids);
+    Ok(())
+}
