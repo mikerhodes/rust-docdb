@@ -226,3 +226,20 @@ fn query_gte() -> Result<(), sled::Error> {
 
     Ok(())
 }
+
+#[test]
+fn query_gt() -> Result<(), sled::Error> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![query::QP::GT {
+            p: keypath!["name"],
+            v: tv("john"),
+        }],
+    )?;
+    assert_eq!(vec!["doc1".to_string()], ids);
+    Ok(())
+}
