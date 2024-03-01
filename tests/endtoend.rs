@@ -1,5 +1,8 @@
 // end to end tests
-use rust_docdb::docdb;
+use rust_docdb::{
+    docdb, keypath,
+    query::{search_index, tv, TaggableValue, QP},
+};
 use serde_json::json;
 
 #[test]
@@ -27,11 +30,65 @@ fn insert_and_readback() {
         docdb::insert_document(&db, &key, v).is_ok(),
         "doc should have been inserted"
     );
-    match docdb::get_document(&db, &key) {
-        Ok(n) => {
-            assert_eq!(n.to_string(), expected, "document was not as expected")
-        }
-        Err(_) => assert!(false, "could not get document"),
-    };
-    assert!(db.remove(&key).is_ok(), "doc should have been deleted");
+    assert!(
+        docdb::get_document(&db, &key).is_ok_and(|o| o.is_some_and(|doc| {
+            assert_eq!(doc.to_string(), expected);
+            true
+        }))
+    );
+}
+
+#[test]
+fn test_delete() -> Result<(), sled::Error> {
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    let v = json!({
+        "name": "John Doe",
+        "age": 43,
+    });
+    let docid = "foo".to_string();
+
+    assert!(
+        docdb::insert_document(&db, &docid, v).is_ok(),
+        "doc should have been inserted"
+    );
+    assert!(
+        docdb::get_document(&db, &docid).is_ok_and(|x| x.is_some()),
+        "document was not deleted"
+    );
+    assert!(
+        docdb::delete_document(&db, &docid).is_ok(),
+        "doc should have been deleted"
+    );
+
+    // Check we cannot get it by ID
+    assert!(
+        docdb::get_document(&db, &docid).is_ok_and(|x| x.is_none()),
+        "document was not deleted"
+    );
+    // Or search for it
+    assert!(
+        search_index(
+            &db,
+            vec![QP::E {
+                p: keypath!["name"],
+                v: tv("John Doe"),
+            }],
+        )
+        .is_ok_and(|result| result.len() == 0),
+        "document id found via search"
+    );
+    assert!(
+        search_index(
+            &db,
+            vec![QP::E {
+                p: keypath!["age"],
+                v: tv(43),
+            }],
+        )
+        .is_ok_and(|result| result.len() == 0),
+        "document id found via search"
+    );
+
+    Ok(())
 }
