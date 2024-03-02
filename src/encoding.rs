@@ -58,12 +58,12 @@ pub fn encode_index_key(docid: &str, path: &Vec<TaggableValue>, v: &TaggableValu
     // can uniformly decode using generic functions.
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(component));
+        k.extend(component.encode());
         k.push(0x00);
     }
-    k.extend(encode_tagged_value(v));
+    k.extend(v.encode());
     k.push(0x00);
-    k.extend(encode_tagged_value(&TaggableValue::from(docid)));
+    k.extend(&TaggableValue::from(docid).encode());
     k
 }
 
@@ -92,10 +92,10 @@ fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
 pub fn encode_index_query_pv_start_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&component));
+        k.extend(component.encode());
         k.push(0x00);
     }
-    k.extend(encode_tagged_value(v));
+    k.extend(v.encode());
     k.push(0x00);
     k
 }
@@ -105,10 +105,10 @@ pub fn encode_index_query_pv_start_key(path: &Vec<TaggableValue>, v: &TaggableVa
 pub fn encode_index_query_pv_end_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&component));
+        k.extend(component.encode());
         k.push(0x00);
     }
-    k.extend(encode_tagged_value(v));
+    k.extend(v.encode());
     k.push(0x01); // ie, 0x01 is always greater than the sep between path/value and doc ID
     k
 }
@@ -118,7 +118,7 @@ pub fn encode_index_query_pv_end_key(path: &Vec<TaggableValue>, v: &TaggableValu
 pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&component));
+        k.extend(component.encode());
         k.push(0x00);
     }
     let last = k.len() - 1;
@@ -131,7 +131,7 @@ pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
 pub fn encode_index_query_p_start_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
     for component in path {
-        k.extend(encode_tagged_value(&component));
+        k.extend(component.encode());
         k.push(0x00);
     }
     k
@@ -146,48 +146,47 @@ enum JsonTag {
     String = 0x2c, // char: ,
 }
 
-// encode_tagged_value encodes a primitive JSON type:
-// number, string, null and bool.
-// TODO return a Result<Vec<u8>>? So we can return an error
-//      if it's not the right type. Perhaps the type system
-//      can enforce it.
-pub fn encode_tagged_value(v: &TaggableValue) -> Vec<u8> {
-    let mut tv = vec![];
+impl TaggableValue {
+    // encode_tagged_value encodes a primitive JSON type:
+    // number, string, null and bool.
+    fn encode(&self) -> Vec<u8> {
+        let mut tv = vec![];
 
-    match v {
-        TaggableValue::Null => tv.push(JsonTag::Null as u8),
-        TaggableValue::Bool(b) => match b {
-            true => tv.push(JsonTag::True as u8),
-            false => tv.push(JsonTag::False as u8),
-        },
-        TaggableValue::Number(n) => {
-            // This StackOverflow answer shows how to
-            // encode a float64 into a byte array that
-            // has the same sort order as the floats.
-            // https://stackoverflow.com/a/54557561
-            let fl = *n;
-            let mut bits = fl.to_bits(); // creates a u64
-            if fl >= 0_f64 {
-                bits ^= 0x8000000000000000
-            } else {
-                bits ^= 0xffffffffffffffff
+        match self {
+            TaggableValue::Null => tv.push(JsonTag::Null as u8),
+            TaggableValue::Bool(b) => match b {
+                true => tv.push(JsonTag::True as u8),
+                false => tv.push(JsonTag::False as u8),
+            },
+            TaggableValue::Number(n) => {
+                // This StackOverflow answer shows how to
+                // encode a float64 into a byte array that
+                // has the same sort order as the floats.
+                // https://stackoverflow.com/a/54557561
+                let fl = *n;
+                let mut bits = fl.to_bits(); // creates a u64
+                if fl >= 0_f64 {
+                    bits ^= 0x8000000000000000
+                } else {
+                    bits ^= 0xffffffffffffffff
+                }
+                let buf = bits.to_be_bytes();
+
+                tv.push(JsonTag::Number as u8);
+                tv.extend_from_slice(&buf)
             }
-            let buf = bits.to_be_bytes();
+            TaggableValue::String(s) => {
+                tv.push(JsonTag::String as u8);
+                tv.extend(s.as_bytes())
+            }
+            TaggableValue::RcString(s) => {
+                tv.push(JsonTag::String as u8);
+                tv.extend(s.as_bytes())
+            }
+        }
 
-            tv.push(JsonTag::Number as u8);
-            tv.extend_from_slice(&buf)
-        }
-        TaggableValue::String(s) => {
-            tv.push(JsonTag::String as u8);
-            tv.extend(s.as_bytes())
-        }
-        TaggableValue::RcString(s) => {
-            tv.push(JsonTag::String as u8);
-            tv.extend(s.as_bytes())
-        }
+        tv
     }
-
-    tv
 }
 
 #[cfg(test)]
@@ -213,22 +212,19 @@ mod tests {
 
     #[test]
     fn test_encode_null() {
-        assert_eq!(
-            encode_tagged_value(&TaggableValue::Null),
-            vec![JsonTag::Null as u8]
-        );
+        assert_eq!(TaggableValue::Null.encode(), vec![JsonTag::Null as u8]);
     }
 
     #[test]
     fn test_encode_bool() {
-        assert_eq!(encode_tagged_value(&tv(true)), vec![JsonTag::True as u8]);
-        assert_eq!(encode_tagged_value(&tv(false)), vec![JsonTag::False as u8]);
+        assert_eq!(tv(true).encode(), vec![JsonTag::True as u8]);
+        assert_eq!(tv(false).encode(), vec![JsonTag::False as u8]);
     }
 
     #[test]
     fn test_encode_number() {
         assert_eq!(
-            encode_tagged_value(&tv(-1)),
+            tv(-1).encode(),
             vec![
                 0x2b, // JsonTag::Number
                 0x40, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff // -1
@@ -240,14 +236,14 @@ mod tests {
     fn test_encode_number_ordering() {
         let tests = vec![(1, 2), (-1, 1), (123, 321), (0, 1), (-1, 0)];
         for t in tests {
-            assert!(encode_tagged_value(&tv(t.0)) < encode_tagged_value(&tv(t.1)),);
+            assert!(tv(t.0).encode() < tv(t.1).encode(),);
         }
     }
 
     #[test]
     fn test_encode_string() {
         assert_eq!(
-            encode_tagged_value(&tv("foo")),
+            tv("foo").encode(),
             vec![
                 0x2c, // JsonTag::String
                 0x66, 0x6f, 0x6f, // foo
