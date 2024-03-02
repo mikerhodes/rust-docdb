@@ -80,10 +80,8 @@ pub fn decode_index_key_docid(k: &[u8]) -> Result<&str, DecodeError> {
 fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
     let (tag, tail) = tv.split_first().ok_or(DecodeError)?;
     match *tag {
-        x if x == JsonTag::String as u8 => match str::from_utf8(tail) {
-            Ok(v) => Ok(v),
-            Err(_) => Err(DecodeError),
-        },
+        x if x == JsonTag::String as u8 => str::from_utf8(tail).map_err(|_| DecodeError),
+        // Only support decoding strings
         _ => Err(DecodeError),
     }
 }
