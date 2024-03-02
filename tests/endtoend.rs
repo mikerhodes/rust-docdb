@@ -27,7 +27,7 @@ fn insert_and_readback() {
     let key = "foo".to_string();
 
     assert!(
-        docdb::insert_document(&db, &key, v).is_ok(),
+        docdb::set_document(&db, &key, v).is_ok(),
         "doc should have been inserted"
     );
     assert!(
@@ -49,7 +49,7 @@ fn test_delete() -> Result<(), sled::Error> {
     let docid = "foo".to_string();
 
     assert!(
-        docdb::insert_document(&db, &docid, v).is_ok(),
+        docdb::set_document(&db, &docid, v).is_ok(),
         "doc should have been inserted"
     );
     assert!(

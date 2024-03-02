@@ -10,17 +10,17 @@ use sled::Db;
 use tempfile::tempdir;
 
 fn insert_test_data(db: &Db) -> Result<(), DocDbError> {
-    docdb::insert_document(
+    docdb::set_document(
         &db,
         "doc1",
         json!({"a":{"b": 1}, "name": "mike", "age": 40, "pet": ["cat", "cat", "dog"]}),
     )?;
-    docdb::insert_document(
+    docdb::set_document(
         &db,
         "doc2",
         json!({"a":{"c": 2}, "name": "john", "age": 24}),
     )?;
-    docdb::insert_document(
+    docdb::set_document(
         &db,
         "doc3",
         json!({"a":{"c": 2}, "name": "john", "age": 110, "pet": ["wombat"]}),
@@ -90,12 +90,12 @@ fn query_array_eq() -> Result<(), DocDbError> {
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
 
-    docdb::insert_document(
+    docdb::set_document(
         &db,
         "arrayed",
         json!({"arrs": [{"animals": ["cat", "wombat", "possum"]}, {"animals": "shark", "nums": [1,2,3,4,5]}]}),
     )?;
-    docdb::insert_document(
+    docdb::set_document(
         &db,
         "arrayed2",
         json!({"arrs": [{"animals": "shark"}, {"animals": "shark", "nums": [1,2,3,4,5]}]}),
@@ -199,7 +199,7 @@ fn query_gte() -> Result<(), DocDbError> {
     )?;
     assert_eq!(vec!["doc3".to_string()], ids);
 
-    docdb::insert_document(&db, "arrayed", json!({"arr": [1,2,"foo",4]}))?;
+    docdb::set_document(&db, "arrayed", json!({"arr": [1,2,"foo",4]}))?;
     let ids = query::search_index(
         &db,
         vec![query::QP::GTE {

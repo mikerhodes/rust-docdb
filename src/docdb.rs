@@ -42,7 +42,7 @@ pub fn get_document(db: &Db, docid: &str) -> Result<Option<serde_json::Value>, D
 }
 
 // Insert and index v into db at key
-pub fn insert_document(db: &Db, docid: &str, v: serde_json::Value) -> Result<(), DocDbError> {
+pub fn set_document(db: &Db, docid: &str, v: serde_json::Value) -> Result<(), DocDbError> {
     let mut batch = sled::Batch::default();
     match get_document(&db, &docid)? {
         Some(v) => delete_batch(&mut batch, docid, v),

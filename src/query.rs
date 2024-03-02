@@ -203,17 +203,17 @@ mod tests {
     use super::*;
 
     fn insert_test_data(db: &Db) -> Result<(), DocDbError> {
-        docdb::insert_document(
+        docdb::set_document(
             &db,
             "doc1",
             json!({"a":{"b": 1}, "name": "mike", "age": 40}),
         )?;
-        docdb::insert_document(
+        docdb::set_document(
             &db,
             "doc2",
             json!({"a":{"c": 2}, "name": "john", "age": 24}),
         )?;
-        docdb::insert_document(
+        docdb::set_document(
             &db,
             "doc3",
             json!({"a":{"c": 2}, "name": "john", "age": 110}),
