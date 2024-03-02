@@ -1,5 +1,4 @@
 use serde_json::Value;
-use sled::transaction::{abort, TransactionError};
 use sled::Db;
 
 use crate::encoding::{encode_document_key, encode_index_key};
@@ -22,6 +21,12 @@ impl From<sled::Error> for DocDbError {
     }
 }
 
+impl From<rmp_serde::encode::Error> for DocDbError {
+    fn from(value: rmp_serde::encode::Error) -> Self {
+        DocDbError::DocEncode(value)
+    }
+}
+
 // Retrieve a document from db by key.
 pub fn get_document(db: &Db, docid: &str) -> Result<Option<serde_json::Value>, DocDbError> {
     let readvalue = db.get(encode_document_key(docid))?;
@@ -38,72 +43,58 @@ pub fn get_document(db: &Db, docid: &str) -> Result<Option<serde_json::Value>, D
 
 // Insert and index v into db at key
 pub fn insert_document(db: &Db, docid: &str, v: serde_json::Value) -> Result<(), DocDbError> {
-    let data = match rmp_serde::to_vec(&v) {
-        Ok(b) => b,
-        Err(e) => return Err(DocDbError::DocEncode(e)),
+    let mut batch = sled::Batch::default();
+    match get_document(&db, &docid)? {
+        Some(v) => delete_batch(&mut batch, docid, v),
+        None => {}
     };
-    let buf = &data[..];
-    // TODO can we avoid the v clone() call?
-    // The issue is that the closure in db.transaction can be called
-    // multiple times, so the closure can't have things moved into it
-    // as they'd then not be available to be moved if it is run again.
-    let res: Result<(), TransactionError<()>> = db.transaction(|db_tx| {
-        // pack the json into msgpack for storage
-        db_tx.insert(encode_document_key(docid), buf)?;
+    insert_batch(&mut batch, docid, v)?;
+    db.apply_batch(batch).map_err(|e| DocDbError::Db(e))
+}
 
-        // v is moved into get_path_values. This might not be possible
-        // if we later needed v, but we don't yet.
-        let path_values = get_path_values(v.clone());
+// Adds commands to add and index `v` to the database to a batch
+fn insert_batch(
+    batch: &mut sled::Batch,
+    docid: &str,
+    v: serde_json::Value,
+) -> Result<(), DocDbError> {
+    // pack the json into msgpack for storage
+    let buf = rmp_serde::to_vec(&v)?;
+    batch.insert(encode_document_key(docid), buf);
 
-        let sentinal_value: [u8; 0] = [];
-        // Here we are indexing the path_values, so we can
-        // consume them as we don't need them afterwards
-        for (path, v) in path_values {
-            let k = encode_index_key(docid, &path, &v);
-            db_tx.insert(k, &sentinal_value)?;
-        }
-        Ok(())
-    });
-    match res {
-        Ok(_) => Ok(()),
-        Err(e) => match e {
-            TransactionError::Abort(_) => Err(DocDbError::GenericError),
-            TransactionError::Storage(e) => Err(DocDbError::Db(e)),
-        },
+    // v is moved into get_path_values. This might not be possible
+    // if we later needed v, but we don't yet.
+    let path_values = get_path_values(v);
+
+    let sentinal_value: [u8; 0] = [];
+    // Here we would be indexing the path_values, so we can
+    // consume them as we don't need them afterwards
+    for (path, v) in path_values {
+        let k = encode_index_key(docid, &path, &v);
+        batch.insert(k, &sentinal_value);
     }
+
+    Ok(())
 }
 
 pub fn delete_document(db: &Db, docid: &str) -> Result<(), DocDbError> {
-    // 1. Read the existing value
-    // 2. Generate the existing index entries from that, and delete them.
-    // 3. Delete the document itself.
-    let res: Result<(), TransactionError<DocDbError>> = db.transaction(|db_tx| {
-        let readvalue = db_tx.get(encode_document_key(docid))?;
-        // If the document isn't in the database, assume it's okay
-        let packed = match readvalue {
-            Some(doc) => doc,
-            None => return Ok(()),
-        };
-        let v = match rmp_serde::from_slice::<Value>(&packed) {
-            Ok(d) => d,
-            Err(e) => abort(DocDbError::DocDecode(e))?,
-        };
+    // If the document isn't in the database, assume it's okay
+    let mut batch = sled::Batch::default();
+    match get_document(&db, &docid)? {
+        Some(v) => delete_batch(&mut batch, docid, v),
+        None => {}
+    };
+    db.apply_batch(batch).map_err(|e| DocDbError::Db(e))
+}
 
-        let path_values = get_path_values(v.clone());
-        for (path, v) in path_values {
-            let k = encode_index_key(docid, &path, &v);
-            db_tx.remove(k)?;
-        }
-        db_tx.remove(encode_document_key(docid))?;
-        Ok(())
-    });
-    match res {
-        Ok(_) => Ok(()),
-        Err(e) => match e {
-            TransactionError::Abort(_) => Err(DocDbError::GenericError),
-            TransactionError::Storage(e) => Err(DocDbError::Db(e)),
-        },
+// Adds commands to remove v from the database to a batch
+fn delete_batch(batch: &mut sled::Batch, docid: &str, v: serde_json::Value) {
+    let path_values = get_path_values(v);
+    for (path, v) in path_values {
+        let k = encode_index_key(docid, &path, &v);
+        batch.remove(k);
     }
+    batch.remove(encode_document_key(docid));
 }
 
 pub fn new_database(path: &std::path::Path) -> sled::Result<Db> {
