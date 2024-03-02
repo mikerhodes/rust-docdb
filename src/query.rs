@@ -136,19 +136,9 @@ fn lookup_eq(
     path: Vec<TaggableValue>,
     v: TaggableValue,
 ) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
-
-    let iter = db.range(start_key..end_key);
-    for i in iter {
-        let (k, _) = i?;
-        match encoding::decode_index_key_docid(&k) {
-            Ok(v) => ids.push(v.to_string()),
-            Err(_) => println!("Couldn't decode docID from {:?}", &k),
-        };
-    }
-    Ok(ids)
+    scan(&db, &start_key, &end_key)
 }
 
 fn lookup_gte(
@@ -156,19 +146,9 @@ fn lookup_gte(
     path: Vec<TaggableValue>,
     v: TaggableValue,
 ) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
-
-    let iter = db.range(start_key..end_key);
-    for i in iter {
-        let (k, _) = i?;
-        match encoding::decode_index_key_docid(&k) {
-            Ok(v) => ids.push(v.to_string()),
-            Err(_) => println!("Couldn't decode docID from {:?}", &k),
-        };
-    }
-    Ok(ids)
+    scan(&db, &start_key, &end_key)
 }
 
 fn lookup_gt(
@@ -176,19 +156,9 @@ fn lookup_gt(
     path: Vec<TaggableValue>,
     v: TaggableValue,
 ) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_end_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
-
-    let iter = db.range(start_key..end_key);
-    for i in iter {
-        let (k, _) = i?;
-        match encoding::decode_index_key_docid(&k) {
-            Ok(v) => ids.push(v.to_string()),
-            Err(_) => println!("Couldn't decode docID from {:?}", &k),
-        };
-    }
-    Ok(ids)
+    scan(&db, &start_key, &end_key)
 }
 
 fn lookup_lt(
@@ -196,19 +166,9 @@ fn lookup_lt(
     path: Vec<TaggableValue>,
     v: TaggableValue,
 ) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_start_key(&path, &v);
-
-    let iter = db.range(start_key..end_key);
-    for i in iter {
-        let (k, _) = i?;
-        match encoding::decode_index_key_docid(&k) {
-            Ok(v) => ids.push(v.to_string()),
-            Err(_) => println!("Couldn't decode docID from {:?}", &k),
-        };
-    }
-    Ok(ids)
+    scan(&db, &start_key, &end_key)
 }
 
 fn lookup_lte(
@@ -216,10 +176,13 @@ fn lookup_lte(
     path: Vec<TaggableValue>,
     v: TaggableValue,
 ) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
+    scan(&db, &start_key, &end_key)
+}
 
+fn scan(db: &Db, start_key: &[u8], end_key: &[u8]) -> Result<Vec<String>, DocDbError> {
+    let mut ids = vec![];
     let iter = db.range(start_key..end_key);
     for i in iter {
         let (k, _) = i?;
