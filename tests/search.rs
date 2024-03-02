@@ -1,4 +1,5 @@
 use rust_docdb::docdb;
+use rust_docdb::docdb::DocDbError;
 use rust_docdb::keypath;
 use rust_docdb::query;
 use rust_docdb::query::tv;
@@ -8,7 +9,7 @@ use sled;
 use sled::Db;
 use tempfile::tempdir;
 
-fn insert_test_data(db: &Db) -> Result<(), sled::Error> {
+fn insert_test_data(db: &Db) -> Result<(), DocDbError> {
     docdb::insert_document(
         &db,
         "doc1",
@@ -28,7 +29,7 @@ fn insert_test_data(db: &Db) -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_eq() -> Result<(), sled::Error> {
+fn query_eq() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
@@ -84,7 +85,7 @@ fn query_eq() -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_array_eq() -> Result<(), sled::Error> {
+fn query_array_eq() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
@@ -167,7 +168,7 @@ fn query_array_eq() -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_gte() -> Result<(), sled::Error> {
+fn query_gte() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
@@ -228,7 +229,7 @@ fn query_gte() -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_gt() -> Result<(), sled::Error> {
+fn query_gt() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
@@ -245,7 +246,7 @@ fn query_gt() -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_lt() -> Result<(), sled::Error> {
+fn query_lt() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;
@@ -262,7 +263,7 @@ fn query_lt() -> Result<(), sled::Error> {
 }
 
 #[test]
-fn query_lte() -> Result<(), sled::Error> {
+fn query_lte() -> Result<(), DocDbError> {
     let tmp_dir = tempdir().unwrap();
     let db = docdb::new_database(tmp_dir.path()).unwrap();
     insert_test_data(&db)?;

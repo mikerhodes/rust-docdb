@@ -2,7 +2,10 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use sled::Db;
 
-use crate::encoding::{self};
+use crate::{
+    docdb::DocDbError,
+    encoding::{self},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TaggableValue {
@@ -95,7 +98,7 @@ pub enum QP {
 
 pub type Query = Vec<QP>;
 
-pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, sled::Error> {
+pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
 
@@ -132,7 +135,7 @@ fn lookup_eq(
     db: &Db,
     path: Vec<TaggableValue>,
     v: TaggableValue,
-) -> Result<Vec<String>, sled::Error> {
+) -> Result<Vec<String>, DocDbError> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
@@ -152,7 +155,7 @@ fn lookup_gte(
     db: &Db,
     path: Vec<TaggableValue>,
     v: TaggableValue,
-) -> Result<Vec<String>, sled::Error> {
+) -> Result<Vec<String>, DocDbError> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
@@ -172,7 +175,7 @@ fn lookup_gt(
     db: &Db,
     path: Vec<TaggableValue>,
     v: TaggableValue,
-) -> Result<Vec<String>, sled::Error> {
+) -> Result<Vec<String>, DocDbError> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_pv_end_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
@@ -192,7 +195,7 @@ fn lookup_lt(
     db: &Db,
     path: Vec<TaggableValue>,
     v: TaggableValue,
-) -> Result<Vec<String>, sled::Error> {
+) -> Result<Vec<String>, DocDbError> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_start_key(&path, &v);
@@ -212,7 +215,7 @@ fn lookup_lte(
     db: &Db,
     path: Vec<TaggableValue>,
     v: TaggableValue,
-) -> Result<Vec<String>, sled::Error> {
+) -> Result<Vec<String>, DocDbError> {
     let mut ids = vec![];
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
@@ -236,7 +239,7 @@ mod tests {
 
     use super::*;
 
-    fn insert_test_data(db: &Db) -> Result<(), sled::Error> {
+    fn insert_test_data(db: &Db) -> Result<(), DocDbError> {
         docdb::insert_document(
             &db,
             "doc1",
@@ -256,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn lookup_eq_test() -> Result<(), sled::Error> {
+    fn lookup_eq_test() -> Result<(), DocDbError> {
         let tmp_dir = tempdir().unwrap();
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
@@ -273,7 +276,7 @@ mod tests {
         Ok(())
     }
     #[test]
-    fn lookup_gte_test() -> Result<(), sled::Error> {
+    fn lookup_gte_test() -> Result<(), DocDbError> {
         let tmp_dir = tempdir().unwrap();
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
@@ -305,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn lookup_gt_test() -> Result<(), sled::Error> {
+    fn lookup_gt_test() -> Result<(), DocDbError> {
         let tmp_dir = tempdir().unwrap();
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
@@ -337,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    fn lookup_lt_test() -> Result<(), sled::Error> {
+    fn lookup_lt_test() -> Result<(), DocDbError> {
         let tmp_dir = tempdir().unwrap();
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
@@ -363,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn lookup_lte_test() -> Result<(), sled::Error> {
+    fn lookup_lte_test() -> Result<(), DocDbError> {
         let tmp_dir = tempdir().unwrap();
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
