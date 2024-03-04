@@ -27,6 +27,12 @@ impl From<rmp_serde::encode::Error> for DocDbError {
     }
 }
 
+impl From<rmp_serde::decode::Error> for DocDbError {
+    fn from(value: rmp_serde::decode::Error) -> Self {
+        DocDbError::DocDecode(value)
+    }
+}
+
 // Retrieve a document from db by key.
 pub fn get_document(db: &Db, docid: &str) -> Result<Option<serde_json::Value>, DocDbError> {
     let readvalue = db.get(encode_document_key(docid))?;
@@ -34,10 +40,7 @@ pub fn get_document(db: &Db, docid: &str) -> Result<Option<serde_json::Value>, D
         Some(doc) => doc,
         None => return Ok(None),
     };
-    let doc = match rmp_serde::from_slice::<Value>(&packed) {
-        Ok(d) => d,
-        Err(e) => return Err(DocDbError::DocDecode(e)),
-    };
+    let doc = rmp_serde::from_slice::<Value>(&packed)?;
     Ok(Some(doc))
 }
 
