@@ -57,10 +57,8 @@ pub fn encode_index_key(docid: &str, path: &Vec<TaggableValue>, v: &TaggableValu
     // well tag the doc ID at the end too, so we
     // can uniformly decode using generic functions.
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
-    for component in path {
-        k.extend(component.encode());
-        k.push(0x00);
-    }
+    k.extend(path.encode());
+    k.push(0x00);
     k.extend(v.encode());
     k.push(0x00);
     k.extend(&TaggableValue::from(docid).encode());
@@ -89,10 +87,8 @@ fn decode_tagged_str(tv: &[u8]) -> Result<&str, DecodeError> {
 // Encode an index key that is guaranteed to be the first key of indexed path and v.
 pub fn encode_index_query_pv_start_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
-    for component in path {
-        k.extend(component.encode());
-        k.push(0x00);
-    }
+    k.extend(path.encode());
+    k.push(0x00);
     k.extend(v.encode());
     k.push(0x00);
     k
@@ -102,10 +98,8 @@ pub fn encode_index_query_pv_start_key(path: &Vec<TaggableValue>, v: &TaggableVa
 // before any different path and v.
 pub fn encode_index_query_pv_end_key(path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
-    for component in path {
-        k.extend(component.encode());
-        k.push(0x00);
-    }
+    k.extend(path.encode());
+    k.push(0x00);
     k.extend(v.encode());
     k.push(0x01); // ie, 0x01 is always greater than the sep between path/value and doc ID
     k
@@ -115,12 +109,8 @@ pub fn encode_index_query_pv_end_key(path: &Vec<TaggableValue>, v: &TaggableValu
 // before any different path and v.
 pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
-    for component in path {
-        k.extend(component.encode());
-        k.push(0x00);
-    }
-    let last = k.len() - 1;
-    k[last] = 0x01;
+    k.extend(path.encode());
+    k.push(0x01);
     k
 }
 
@@ -128,11 +118,30 @@ pub fn encode_index_query_p_end_key(path: &Vec<TaggableValue>) -> Vec<u8> {
 // bound of keys with a given path.
 pub fn encode_index_query_p_start_key(path: &Vec<TaggableValue>) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_INDEX, 0x00];
-    for component in path {
-        k.extend(component.encode());
-        k.push(0x00);
-    }
+    k.extend(path.encode());
+    k.push(0x00);
     k
+}
+
+// Encodable is a small private trait that helps us encode
+// each type of value we use in our keys
+trait Encodable {
+    fn encode(&self) -> Vec<u8>;
+}
+
+impl Encodable for &Vec<TaggableValue> {
+    // encode path, separated with 0x00 and excluding trailing 0x00
+    fn encode(&self) -> Vec<u8> {
+        let mut k: Vec<u8> = vec![];
+        if let Some((last, elements)) = self.split_last() {
+            for component in elements {
+                k.extend(component.encode());
+                k.push(0x00);
+            }
+            k.extend(last.encode());
+        }
+        k
+    }
 }
 
 enum JsonTag {
@@ -144,7 +153,7 @@ enum JsonTag {
     String = 0x2c, // char: ,
 }
 
-impl TaggableValue {
+impl Encodable for TaggableValue {
     // encode_tagged_value encodes a primitive JSON type:
     // number, string, null and bool.
     fn encode(&self) -> Vec<u8> {
