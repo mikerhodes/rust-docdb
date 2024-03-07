@@ -45,7 +45,7 @@ const KEY_INDEX: u8 = 2u8;
 
 pub fn encode_document_key(docid: &str) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_DOCUMENT, 0x00];
-    k.extend(docid.as_bytes());
+    k.extend(&TaggableValue::from(docid).encode());
     k
 }
 pub fn encode_index_key(docid: &str, path: &Vec<TaggableValue>, v: &TaggableValue) -> Vec<u8> {
@@ -212,8 +212,11 @@ mod tests {
     #[test]
     fn test_encode_document_key() {
         let tests = vec![
-            ("foo".to_string(), vec![0x66, 0x6f, 0x6f]),
-            ("møkå".to_string(), vec![0x6d, 0xc3, 0xb8, 0x6b, 0xc3, 0xa5]),
+            ("foo".to_string(), vec![44, 0x66, 0x6f, 0x6f]),
+            (
+                "møkå".to_string(),
+                vec![44, 0x6d, 0xc3, 0xb8, 0x6b, 0xc3, 0xa5],
+            ),
         ];
         for t in tests {
             let mut expected = vec![KEY_DOCUMENT, 0x00];
