@@ -7,7 +7,7 @@ use crate::{
     encoding::{self},
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum TaggableValue {
     Null,
     Bool(bool),
@@ -73,6 +73,7 @@ impl From<Rc<String>> for TaggableValue {
 
 // QP is a query predicate. A query is a list of
 // QPs that are ANDed together.
+#[derive(PartialOrd, PartialEq)]
 pub enum QP {
     E {
         p: Vec<TaggableValue>,
@@ -105,7 +106,7 @@ pub struct QueryResult {
     pub stats: QueryStats,
 }
 
-pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
+pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
 
@@ -114,6 +115,15 @@ pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
     let mut n_preds = 0;
     let mut stats = QueryStats { scans: 0 };
     let mut first_predicate = true;
+
+    // Sort by the ordering in the enum, which puts equality
+    // first, which is likely to have a smaller result set
+    // than any range query. This means we likely end up using
+    // a little less memory because of only storing the IDs that
+    // are returned by the first predicate. Not sure if this sorts by the
+    // path and value, as TaggableValue doesn't implement Ord.
+    // https://stackoverflow.com/a/70588789
+    q.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     for qp in q {
         n_preds += 1;

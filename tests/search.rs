@@ -317,6 +317,7 @@ fn query_search_short_circuit_empty_scan() -> Result<(), DocDbError> {
         ],
     )?;
     assert_eq!(0, ids.results.len(), "wrong result count");
-    assert_eq!(2, ids.stats.scans, "index scans not short circuited");
+    // Only 1 scan as the query is re-ordered to place the eq first
+    assert_eq!(1, ids.stats.scans, "index scans not short circuited");
     Ok(())
 }
