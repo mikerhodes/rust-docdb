@@ -26,6 +26,8 @@ These are:
 
    Once this is done, other optimisations make more sense.
 
+   - Implemented in 2c80d66.
+
 1. Reorder clauses to put equality predicates first. These are likely to have
    the fewest index matches, and so make sense to do first to narrow down the
    number of IDs that we are storing in memory once (1) is complete.
