@@ -31,6 +31,7 @@ These are:
 1. Reorder clauses to put equality predicates first. These are likely to have
    the fewest index matches, and so make sense to do first to narrow down the
    number of IDs that we are storing in memory once (1) is complete.
+   - Implemented in 0f43ad3.
 1. For the remaining clauses, order by the field. We may be able to collapse
    queries together, and if not, we might at least end up scanning similar areas
    of files (depending on whether we are using a btree or LSM tree key/value
