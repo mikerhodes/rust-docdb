@@ -97,14 +97,22 @@ pub enum QP {
 }
 
 pub type Query = Vec<QP>;
+pub struct QueryStats {
+    pub scans: u16,
+}
+pub struct QueryResult {
+    pub results: Vec<String>,
+    pub stats: QueryStats,
+}
 
-pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, DocDbError> {
+pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
 
     // BTreeMap so we return IDs to caller in order
     let mut result_ids = BTreeMap::new();
     let mut n_preds = 0;
+    let mut stats = QueryStats { scans: 0 };
 
     for qp in q {
         n_preds += 1;
@@ -115,20 +123,29 @@ pub fn search_index(db: &Db, q: Query) -> Result<Vec<String>, DocDbError> {
             QP::LT { p, v } => lookup_lt(db, p, v)?,
             QP::LTE { p, v } => lookup_lte(db, p, v)?,
         };
+        stats.scans += 1;
+        if ids.is_empty() {
+            // Short-circuit evaluation; an empty result set means
+            // this conjunction can't have any results. Stop scanning.
+            return Ok(QueryResult {
+                results: vec![],
+                stats,
+            });
+        }
         for id in ids {
             let count = result_ids.entry(id).or_insert(0);
             *count += 1;
         }
     }
 
-    let mut result = vec![];
+    let mut results = vec![];
     for (id, n) in result_ids {
         if n == n_preds {
-            result.push(id);
+            results.push(id);
         }
     }
 
-    Ok(result)
+    Ok(QueryResult { results, stats })
 }
 
 fn lookup_eq(

@@ -75,7 +75,7 @@ fn test_delete() -> Result<(), sled::Error> {
                 v: tv("John Doe"),
             }],
         )
-        .is_ok_and(|result| result.len() == 0),
+        .is_ok_and(|result| result.results.len() == 0),
         "document id found via search"
     );
     assert!(
@@ -86,7 +86,7 @@ fn test_delete() -> Result<(), sled::Error> {
                 v: tv(43),
             }],
         )
-        .is_ok_and(|result| result.len() == 0),
+        .is_ok_and(|result| result.results.len() == 0),
         "document id found via search"
     );
 

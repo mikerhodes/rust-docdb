@@ -41,7 +41,7 @@ fn query_eq() -> Result<(), DocDbError> {
             v: tv("john"),
         }],
     )?;
-    assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids);
+    assert_eq!(vec!["doc2".to_string(), "doc3".to_string()], ids.results);
 
     let ids = query::search_index(
         &db,
@@ -60,7 +60,7 @@ fn query_eq() -> Result<(), DocDbError> {
             },
         ],
     )?;
-    assert_eq!(vec!["doc3".to_string()], ids);
+    assert_eq!(vec!["doc3".to_string()], ids.results);
 
     let ids = query::search_index(
         &db,
@@ -79,7 +79,7 @@ fn query_eq() -> Result<(), DocDbError> {
             },
         ],
     )?;
-    assert_eq!(Vec::<String>::new(), ids);
+    assert_eq!(Vec::<String>::new(), ids.results);
 
     Ok(())
 }
@@ -108,7 +108,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv("cat"),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string()], ids);
+    assert_eq!(vec!["arrayed".to_string()], ids.results);
 
     let ids = query::search_index(
         &db,
@@ -117,7 +117,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv("possum"),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string()], ids);
+    assert_eq!(vec!["arrayed".to_string()], ids.results);
 
     let ids = query::search_index(
         &db,
@@ -126,7 +126,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv("possum"),
         }],
     )?;
-    assert_eq!(Vec::<String>::new(), ids);
+    assert_eq!(Vec::<String>::new(), ids.results);
 
     let ids = query::search_index(
         &db,
@@ -135,7 +135,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv("shark"),
         }],
     )?;
-    assert_eq!(vec!["arrayed2".to_string()], ids);
+    assert_eq!(vec!["arrayed2".to_string()], ids.results);
 
     let ids = query::search_index(
         &db,
@@ -144,7 +144,10 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv(3),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string(), "arrayed2".to_string()], ids);
+    assert_eq!(
+        vec!["arrayed".to_string(), "arrayed2".to_string()],
+        ids.results
+    );
 
     let ids = query::search_index(
         &db,
@@ -153,7 +156,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv(3),
         }],
     )?;
-    assert_eq!(Vec::<String>::new(), ids);
+    assert_eq!(Vec::<String>::new(), ids.results);
 
     let ids = query::search_index(
         &db,
@@ -162,7 +165,7 @@ fn query_array_eq() -> Result<(), DocDbError> {
             v: tv("shark"),
         }],
     )?;
-    assert_eq!(vec!["arrayed2".to_string()], ids);
+    assert_eq!(vec!["arrayed2".to_string()], ids.results);
 
     Ok(())
 }
@@ -182,7 +185,7 @@ fn query_gte() -> Result<(), DocDbError> {
     )?;
     assert_eq!(
         vec!["doc1".to_string(), "doc2".to_string(), "doc3".to_string()],
-        ids
+        ids.results
     );
     let ids = query::search_index(
         &db,
@@ -197,7 +200,7 @@ fn query_gte() -> Result<(), DocDbError> {
             },
         ],
     )?;
-    assert_eq!(vec!["doc3".to_string()], ids);
+    assert_eq!(vec!["doc3".to_string()], ids.results);
 
     docdb::set_document(&db, "arrayed", json!({"arr": [1,2,"foo",4]}))?;
     let ids = query::search_index(
@@ -207,7 +210,7 @@ fn query_gte() -> Result<(), DocDbError> {
             v: tv(-1),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string()], ids);
+    assert_eq!(vec!["arrayed".to_string()], ids.results);
     let ids = query::search_index(
         &db,
         vec![query::QP::GTE {
@@ -215,7 +218,7 @@ fn query_gte() -> Result<(), DocDbError> {
             v: tv(-1),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string()], ids);
+    assert_eq!(vec!["arrayed".to_string()], ids.results);
     let ids = query::search_index(
         &db,
         vec![query::QP::GTE {
@@ -223,7 +226,7 @@ fn query_gte() -> Result<(), DocDbError> {
             v: tv("bar"),
         }],
     )?;
-    assert_eq!(vec!["arrayed".to_string()], ids);
+    assert_eq!(vec!["arrayed".to_string()], ids.results);
 
     Ok(())
 }
@@ -241,7 +244,7 @@ fn query_gt() -> Result<(), DocDbError> {
             v: tv("john"),
         }],
     )?;
-    assert_eq!(vec!["doc1".to_string()], ids);
+    assert_eq!(vec!["doc1".to_string()], ids.results);
     Ok(())
 }
 
@@ -258,7 +261,7 @@ fn query_lt() -> Result<(), DocDbError> {
             v: tv(40),
         }],
     )?;
-    assert_eq!(vec!["doc2".to_string()], ids);
+    assert_eq!(vec!["doc2".to_string()], ids.results);
     Ok(())
 }
 
@@ -275,6 +278,45 @@ fn query_lte() -> Result<(), DocDbError> {
             v: tv(40),
         }],
     )?;
-    assert_eq!(vec!["doc1".to_string(), "doc2".to_string()], ids);
+    assert_eq!(vec!["doc1".to_string(), "doc2".to_string()], ids.results);
+    Ok(())
+}
+
+#[test]
+fn query_search_short_circuit_empty_scan() -> Result<(), DocDbError> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::E {
+                p: keypath!["name"],
+                v: tv("notaname"),
+            },
+            query::QP::LTE {
+                p: keypath!["age"],
+                v: tv(40),
+            },
+        ],
+    )?;
+    assert_eq!(0, ids.results.len(), "wrong result count");
+    assert_eq!(1, ids.stats.scans, "index scans not short circuited");
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::LTE {
+                p: keypath!["age"],
+                v: tv(40),
+            },
+            query::QP::E {
+                p: keypath!["name"],
+                v: tv("notaname"),
+            },
+        ],
+    )?;
+    assert_eq!(0, ids.results.len(), "wrong result count");
+    assert_eq!(2, ids.stats.scans, "index scans not short circuited");
     Ok(())
 }
