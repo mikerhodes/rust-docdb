@@ -13,6 +13,7 @@ more complex optimisations should we get there.
 These are:
 
 1. If any scan retrieves zero results, immediately return the empty set.
+   - Implemented in 16dd5a6.
 1. After we have retrieved the IDs matching the first predicate, never add more
    entries to our result list --- because we are executing within an AND, we can
    never extend the set beyond what we have now (currently the code generates a
