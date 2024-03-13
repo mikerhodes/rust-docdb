@@ -113,6 +113,7 @@ pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
     let mut result_ids = BTreeMap::new();
     let mut n_preds = 0;
     let mut stats = QueryStats { scans: 0 };
+    let mut first_predicate = true;
 
     for qp in q {
         n_preds += 1;
@@ -124,6 +125,7 @@ pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
             QP::LTE { p, v } => lookup_lte(db, p, v)?,
         };
         stats.scans += 1;
+
         if ids.is_empty() {
             // Short-circuit evaluation; an empty result set means
             // this conjunction can't have any results. Stop scanning.
@@ -132,12 +134,22 @@ pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
                 stats,
             });
         }
+
         for id in ids {
-            let count = result_ids.entry(id).or_insert(0);
-            *count += 1;
+            let e = result_ids.entry(id).and_modify(|c| *c += 1);
+            if first_predicate {
+                // As no result ID that appears in a later scan but not the
+                // first scan can be in the final result set, don't use memory
+                // to store them.
+                e.or_insert(1);
+            }
         }
+
+        first_predicate = false;
     }
 
+    // Only those entries which were found in every index scan
+    // should be in the final result set.
     let mut results = vec![];
     for (id, n) in result_ids {
         if n == n_preds {
