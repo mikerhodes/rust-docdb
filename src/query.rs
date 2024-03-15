@@ -116,6 +116,12 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
     let mut stats = QueryStats { scans: 0 };
     let mut first_predicate = true;
 
+    // TODO convert all the predicates into a set of
+    // range scans, Scan { startkey, endkey }
+    // then we can later collapse the ranges for the same
+    // keys (using the IndexKey path_prefix method to group
+    // by the paths).
+
     // Sort by the ordering in the enum, which puts equality
     // first, which is likely to have a smaller result set
     // than any range query. This means we likely end up using

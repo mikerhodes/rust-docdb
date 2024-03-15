@@ -43,6 +43,58 @@ impl Error for DecodeError {}
 const KEY_DOCUMENT: u8 = 1u8;
 const KEY_INDEX: u8 = 2u8;
 
+// Use a separate SEP for between path components to make
+// it easier to split the path from the other key components.
+const COMPONENT_SEP: u8 = 0x00;
+const PATH_SEP: u8 = 0x01;
+
+pub(crate) trait IndexKey {
+    fn path_prefix(&self) -> Option<&[u8]>;
+}
+
+impl IndexKey for Vec<u8> {
+    // path_prefix will be sliced from key
+    fn path_prefix(&self) -> Option<&[u8]> {
+        // key format idx SEP path SEP value SEP docid
+        //             slice here ^
+        assert!(self[0] == KEY_INDEX);
+        let rest = &self[2..];
+        let path_len = path_length(rest);
+        Some(&rest[..path_len])
+    }
+}
+
+// path_length returns the number of bytes that the path
+// starting at s[0] takes up.
+// This allows one to return a slice from an index key
+// containing only the path.
+fn path_length(s: &[u8]) -> usize {
+    // Path is either string or number
+    let mut idx = 0;
+    while idx < s.len() {
+        println!("byte: {}", s[idx]);
+        // Each iteration decodes on field of the path
+        if s[idx] == JsonTag::String as u8 {
+            while idx < s.len() {
+                if s[idx] == PATH_SEP || s[idx] == COMPONENT_SEP {
+                    break;
+                }
+                idx += 1
+            }
+        } else if s[idx] == JsonTag::Number as u8 {
+            idx += 9
+        } else {
+            assert!(false, "unexpected start of path part");
+        }
+        if s[idx] == COMPONENT_SEP {
+            break;
+        }
+        assert!(s[idx] == PATH_SEP, "expected path sep");
+        idx += 1;
+    }
+    idx
+}
+
 pub fn encode_document_key(docid: &str) -> Vec<u8> {
     let mut k: Vec<u8> = vec![KEY_DOCUMENT, 0x00];
     k.extend(&TaggableValue::from(docid).encode());
@@ -141,7 +193,7 @@ impl Encodable for &Vec<TaggableValue> {
         if let Some((last, elements)) = self.split_last() {
             for component in elements {
                 k.extend(component.encode());
-                k.push(0x00);
+                k.push(PATH_SEP);
             }
             k.extend(last.encode());
         }
@@ -337,5 +389,35 @@ mod tests {
                 44, 102, 111, 111 // string foo
             ],
         )
+    }
+    #[test]
+    fn test_index_key_path_prefix() {
+        let k = encode_index_key(&"foo".to_string(), &keypath!["pet", 1], &tv("cat"));
+        let expected = vec![
+            2, 0, // index key
+            44, 112, 101, 116, 1, // string pet + PATH SEP
+            43, 191, 240, 0, 0, 0, 0, 0, 0, // number 1.0 (NO SEP)
+        ];
+        assert_eq!(path_length(&k[2..]), expected.len() - 2);
+        assert_eq!(k.path_prefix().unwrap(), &expected[2..]);
+    }
+
+    #[test]
+    fn test_index_key_path_prefix2() {
+        let k = encode_index_key(
+            &"foo".to_string(),
+            &keypath!["pet", "pet", "pet", "pet", 1],
+            &tv("cat"),
+        );
+        let expected = vec![
+            2, 0, // index key
+            44, 112, 101, 116, 1, // string pet + PATH SEP
+            44, 112, 101, 116, 1, // string pet + PATH SEP
+            44, 112, 101, 116, 1, // string pet + PATH SEP
+            44, 112, 101, 116, 1, // string pet + PATH SEP
+            43, 191, 240, 0, 0, 0, 0, 0, 0, // number 1.0 (NO SEP)
+        ];
+        assert_eq!(path_length(&k[2..]), expected.len() - 2);
+        assert_eq!(k.path_prefix().unwrap(), &expected[2..]);
     }
 }
