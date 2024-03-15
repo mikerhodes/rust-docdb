@@ -32,23 +32,72 @@ These are:
    the fewest index matches, and so make sense to do first to narrow down the
    number of IDs that we are storing in memory once (1) is complete.
    - Implemented in 0f43ad3.
-1. For the remaining clauses, order by the field. We may be able to collapse
-   queries together, and if not, we might at least end up scanning similar areas
-   of files (depending on whether we are using a btree or LSM tree key/value
-   store; likely yes for the btree, less likely for the LSM tree).
-1. Analyse the predicates to see if individual greater/less than (or equal to)
-   clauses can be combined. Ie, `a < 12` and `a > 2` can be combined to a single
-   scan of `2 < a < 12`.
-1. Conversely, remove predicates which contradict each other -- like `a > 12`
-   and `a < 5`, or even `a < 12` and `a > 12`. Ensure we don't accidentally
-   catch `a >= 12` and `a <=12` in this.
+1. Do Optimising single field calculations, below.
 
 It is probably worth adding some code to return "statistics" alongside the
 result. In this case, it'd be the number of index scans actually executed. We
 can use this to infer in tests that the expected collapsing of predicates
 happened.
 
-Further minor optimisations:
+## Optimising single field calculations
+
+We make the decision that we will only use indexes for predicates where every
+returned value from the index will match the predicate (eg, this excludes "value
+in array at any index" predicates or regex predicates). This allows us to
+relatively easily calculate the smallest range for a given field if we have only
+eq, gte, gt, lt, lte predicates to worry about.
+
+We note that eq is still a range scan. It scans the range of keys for a given
+path/value prefix.
+
+What we want to do for a given field is generate the smallest range scan that
+satisfies a set of predicates.
+
+Examples searching a field `foo` --- for ease, we use integers, and define that
+LTE 47 == LT 48:
+
+```
+foo GT 12
+foo GTE 15
+foo LT 47
+foo LT 33
+=> GTE 15 <=> LT 33
+
+foo GT 12
+foo GTE 15
+foo LT 47
+foo LT 33
+foo EQ 12
+=> GTE 12 <=> LTE 12
+
+foo GT 12
+foo GTE 15
+foo LT 5
+=> No overlapping range!
+
+foo EQ 12
+foo GTE 15
+foo LT 50
+=> No overlapping range!
+```
+
+We need to be careful to collapse queries only within a single field, otherwise
+a query like `foo > 15 AND zoo < 45` would include all doc IDs with fields
+`goo`, `loo` and so on --- results that shouldn't be in our set. Conversely,
+`foo < 15 AND zoo > 45` would result in a range that cannot be satisfied (as
+foo/15 will sort lower in the index than zoo/45), meaning we'd erroneously
+receive no results!
+
+So we need to:
+
+1. Group our AND predicates by their fields.
+1. Within each group, generate the start/end key for each predicate.
+1. Iterate the group, taking the highest start key and lowest end key.
+1. Either:
+   - If the start key ≤ end key, Some(startkey, endkey).
+   - If start key > end key, return None (and return the empty set for the AND).
+
+## Further minor optimisations:
 
 1. We could use the max/min of the doc IDs in the result set to create slightly
    smaller ranges for queries. For most use-cases this would not be that
