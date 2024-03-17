@@ -135,6 +135,20 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
     // https://stackoverflow.com/a/70588789
     query_sort(&mut q);
 
+    // TODO the problem right now is that query_sort doesn't sort by field
+    // first, it sorts by predicate type (ie, enum definition order).
+    // We might have to write a custom ordering method, well perhaps
+    // query_sort can use sort_by to make it work.
+
+    // I think what we want to do is to get lookup_* to return
+    // the start/end key pairs. We can then map the sorted query
+    // to a set of (field, start/end key). Once we have that, then
+    // we can do the work to loop over the query, and for each
+    // field, generate a new query that collapses the start/end
+    // key for each field into a single entry --- or, if at least
+    // one field has non-overlapping ranges, return an error so
+    // we can exit the AND.
+
     for qp in q {
         n_preds += 1;
         let ids = match qp {
