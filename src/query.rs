@@ -11,10 +11,10 @@ use crate::{
 pub enum TaggableValue {
     Null,
     Bool(bool),
+    Number(f64),
     String(String),
     RcString(Rc<String>), // Rc<String> avoids cloning field name string buffers
-    // ArrayIndex(usize), // Can we encode a usize more easily?
-    Number(f64),
+                          // ArrayIndex(usize), // Can we encode a usize more easily?
 }
 
 pub fn tv<T: Into<TaggableValue>>(v: T) -> TaggableValue {
@@ -73,7 +73,7 @@ impl From<Rc<String>> for TaggableValue {
 
 // QP is a query predicate. A query is a list of
 // QPs that are ANDed together.
-#[derive(PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum QP {
     E {
         p: Vec<TaggableValue>,
@@ -245,6 +245,9 @@ mod tests {
     use serde_json::json;
     use tempfile::tempdir;
 
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
+
     use super::*;
 
     fn insert_test_data(db: &Db) -> Result<(), DocDbError> {
@@ -397,5 +400,75 @@ mod tests {
         assert_eq!(Vec::<String>::new(), ids);
 
         Ok(())
+    }
+
+    #[test]
+    fn qp_ordering() {
+        let mut rng = thread_rng();
+        let expected = vec![
+            QP::E {
+                p: keypath!("foo", "bar"),
+                v: tv(11),
+            },
+            QP::E {
+                p: keypath!("foo", "bar"),
+                v: tv(111),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv(false),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv(1),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv(99),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv("last"),
+            },
+            QP::E {
+                p: keypath!("quux", "bar"),
+                v: tv(1),
+            },
+            QP::E {
+                p: keypath!("quux", "bar", "baz"),
+                v: tv(1),
+            },
+            QP::GT {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::GTE {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::LT {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::LT {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::LT {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::LTE {
+                p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+        ];
+
+        for _ in 1..1001 {
+            let mut test = expected.clone();
+            test.shuffle(&mut rng);
+            test.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            assert_eq!(expected, test);
+        }
     }
 }
