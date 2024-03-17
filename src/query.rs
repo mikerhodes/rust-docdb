@@ -106,6 +106,10 @@ pub struct QueryResult {
     pub stats: QueryStats,
 }
 
+fn query_sort(q: &mut Query) {
+    q.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+}
+
 pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
@@ -129,7 +133,7 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
     // are returned by the first predicate. Not sure if this sorts by the
     // path and value, as TaggableValue doesn't implement Ord.
     // https://stackoverflow.com/a/70588789
-    q.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    query_sort(&mut q);
 
     for qp in q {
         n_preds += 1;
@@ -467,7 +471,7 @@ mod tests {
         for _ in 1..1001 {
             let mut test = expected.clone();
             test.shuffle(&mut rng);
-            test.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            query_sort(&mut test);
             assert_eq!(expected, test);
         }
     }

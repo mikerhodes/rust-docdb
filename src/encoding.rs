@@ -331,7 +331,7 @@ mod tests {
                 0,  // separator
                 44, // JsonTag::String
                 112, 104, 111, 110, 101, 115, // phones
-                0,   // separator
+                1,   // path separator
                 43,  //JsonTag::Number
                 191, 240, 0, 0, 0, 0, 0, 0,  // 1.0
                 0,  // sep
@@ -361,10 +361,10 @@ mod tests {
                 0,  // separator
                 44, //String
                 112, 101, 116, 115, // pets
-                0,   // sep
+                1,   // path sep
                 44,  // String
                 98, 101, 110, 110, 105, 101, // bennie
-                0,   // sep
+                1,   // path sep
                 44,  // String
                 97, 103, 101, // age
                 0,   // sep
@@ -383,7 +383,7 @@ mod tests {
             encode_index_key(&"foo".to_string(), &keypath!["pet", 1], &tv("cat")),
             vec![
                 2, 0, // index key
-                44, 112, 101, 116, 0, // string pet
+                44, 112, 101, 116, 1, // string pet
                 43, 191, 240, 0, 0, 0, 0, 0, 0, 0, // number 1.0
                 44, 99, 97, 116, 0, // string cat
                 44, 102, 111, 111 // string foo
