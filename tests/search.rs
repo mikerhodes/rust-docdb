@@ -291,13 +291,13 @@ fn query_search_short_circuit_empty_scan() -> Result<(), DocDbError> {
     let ids = query::search_index(
         &db,
         vec![
-            query::QP::E {
-                p: keypath!["name"],
-                v: tv("notaname"),
-            },
             query::QP::LTE {
                 p: keypath!["age"],
-                v: tv(40),
+                v: tv(4),
+            },
+            query::QP::E {
+                p: keypath!["name"],
+                v: tv("john"),
             },
         ],
     )?;
@@ -306,18 +306,19 @@ fn query_search_short_circuit_empty_scan() -> Result<(), DocDbError> {
     let ids = query::search_index(
         &db,
         vec![
-            query::QP::LTE {
-                p: keypath!["age"],
-                v: tv(40),
-            },
             query::QP::E {
                 p: keypath!["name"],
-                v: tv("notaname"),
+                v: tv("john"),
+            },
+            query::QP::LTE {
+                p: keypath!["age"],
+                v: tv(4),
             },
         ],
     )?;
     assert_eq!(0, ids.results.len(), "wrong result count");
-    // Only 1 scan as the query is re-ordered to place the eq first
+    // age is moved to the start as queries are internally ordered
+    // by field name before being executed.
     assert_eq!(1, ids.stats.scans, "index scans not short circuited");
     Ok(())
 }

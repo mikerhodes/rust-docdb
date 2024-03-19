@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeMap, rc::Rc};
 
 use sled::Db;
 
@@ -73,7 +73,7 @@ impl From<Rc<String>> for TaggableValue {
 
 // QP is a query predicate. A query is a list of
 // QPs that are ANDed together.
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum QP {
     E {
         p: Vec<TaggableValue>,
@@ -95,6 +95,62 @@ pub enum QP {
         p: Vec<TaggableValue>,
         v: TaggableValue,
     },
+}
+
+// The ordering we define ignores the type of predicate --- E,
+// GT and so on --- and instead focuses on the field and values.
+// This is because, in the end, we want to order by field, then
+// value, and then collapse down the predicates for each field
+// into a single range scan.
+impl PartialOrd for QP {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // These first two match statements generate
+        // a pseudo-discriminant for the Enum, as
+        // mem::discriminat's return value is only Eq not Ord.
+        let s_d = match self {
+            QP::E { p: _, v: _ } => 1,
+            QP::GT { p: _, v: _ } => 2,
+            QP::GTE { p: _, v: _ } => 3,
+            QP::LT { p: _, v: _ } => 4,
+            QP::LTE { p: _, v: _ } => 5,
+        };
+        let o_d = match other {
+            QP::E { p: _, v: _ } => 1,
+            QP::GT { p: _, v: _ } => 2,
+            QP::GTE { p: _, v: _ } => 3,
+            QP::LT { p: _, v: _ } => 4,
+            QP::LTE { p: _, v: _ } => 5,
+        };
+        // Extract the path and value from self and other.
+        let (s_p, s_v) = match self {
+            QP::E { p, v } => (p, v),
+            QP::GT { p, v } => (p, v),
+            QP::GTE { p, v } => (p, v),
+            QP::LT { p, v } => (p, v),
+            QP::LTE { p, v } => (p, v),
+        };
+        let (o_p, o_v) = match other {
+            QP::E { p, v } => (p, v),
+            QP::GT { p, v } => (p, v),
+            QP::GTE { p, v } => (p, v),
+            QP::LT { p, v } => (p, v),
+            QP::LTE { p, v } => (p, v),
+        };
+        // Finally, with that out the way, we can
+        // order them.
+        let ordp = s_p.partial_cmp(o_p)?;
+        match ordp {
+            Ordering::Less => Some(Ordering::Less),
+            Ordering::Greater => Some(Ordering::Greater),
+            Ordering::Equal => match s_v.partial_cmp(o_v)? {
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Greater => Some(Ordering::Greater),
+                Ordering::Equal => Some(s_d.cmp(&o_d)),
+            },
+        }
+
+        // self.height.partial_cmp(&other.height)
+    }
 }
 
 pub type Query = Vec<QP>;
@@ -422,40 +478,11 @@ mod tests {
 
     #[test]
     fn qp_ordering() {
+        // Queries are ordered without regard for their predicate
+        // type, instead only by their path and then value. Finally,
+        // if those are equal, their type.
         let mut rng = thread_rng();
         let expected = vec![
-            QP::E {
-                p: keypath!("foo", "bar"),
-                v: tv(11),
-            },
-            QP::E {
-                p: keypath!("foo", "bar"),
-                v: tv(111),
-            },
-            QP::E {
-                p: keypath!("quux"),
-                v: tv(false),
-            },
-            QP::E {
-                p: keypath!("quux"),
-                v: tv(1),
-            },
-            QP::E {
-                p: keypath!("quux"),
-                v: tv(99),
-            },
-            QP::E {
-                p: keypath!("quux"),
-                v: tv("last"),
-            },
-            QP::E {
-                p: keypath!("quux", "bar"),
-                v: tv(1),
-            },
-            QP::E {
-                p: keypath!("quux", "bar", "baz"),
-                v: tv(1),
-            },
             QP::GT {
                 p: keypath!("foo", "bar"),
                 v: tv(1),
@@ -478,6 +505,38 @@ mod tests {
             },
             QP::LTE {
                 p: keypath!("foo", "bar"),
+                v: tv(1),
+            },
+            QP::E {
+                p: keypath!("foo", "bar"),
+                v: tv(11),
+            },
+            QP::E {
+                p: keypath!("foo", "bar"),
+                v: tv(111),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv(false),
+            },
+            QP::E {
+                p: keypath!("quux"),
+                v: tv(1),
+            },
+            QP::GTE {
+                p: keypath!("quux"),
+                v: tv(99),
+            },
+            QP::LTE {
+                p: keypath!("quux"),
+                v: tv("last"),
+            },
+            QP::E {
+                p: keypath!("quux", "bar"),
+                v: tv(1),
+            },
+            QP::GTE {
+                p: keypath!("quux", "bar", "baz"),
                 v: tv(1),
             },
         ];
