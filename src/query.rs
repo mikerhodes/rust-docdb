@@ -109,33 +109,33 @@ impl PartialOrd for QP {
         // a pseudo-discriminant for the Enum, as
         // mem::discriminat's return value is only Eq not Ord.
         let s_d = match self {
-            QP::E { p: _, v: _ } => 1,
-            QP::GT { p: _, v: _ } => 2,
-            QP::GTE { p: _, v: _ } => 3,
-            QP::LT { p: _, v: _ } => 4,
-            QP::LTE { p: _, v: _ } => 5,
+            QP::E { .. } => 1,
+            QP::GT { .. } => 2,
+            QP::GTE { .. } => 3,
+            QP::LT { .. } => 4,
+            QP::LTE { .. } => 5,
         };
         let o_d = match other {
-            QP::E { p: _, v: _ } => 1,
-            QP::GT { p: _, v: _ } => 2,
-            QP::GTE { p: _, v: _ } => 3,
-            QP::LT { p: _, v: _ } => 4,
-            QP::LTE { p: _, v: _ } => 5,
+            QP::E { .. } => 1,
+            QP::GT { .. } => 2,
+            QP::GTE { .. } => 3,
+            QP::LT { .. } => 4,
+            QP::LTE { .. } => 5,
         };
         // Extract the path and value from self and other.
         let (s_p, s_v) = match self {
-            QP::E { p, v } => (p, v),
-            QP::GT { p, v } => (p, v),
-            QP::GTE { p, v } => (p, v),
-            QP::LT { p, v } => (p, v),
-            QP::LTE { p, v } => (p, v),
+            QP::E { p, v }
+            | QP::GT { p, v }
+            | QP::GTE { p, v }
+            | QP::LT { p, v }
+            | QP::LTE { p, v } => (p, v),
         };
         let (o_p, o_v) = match other {
-            QP::E { p, v } => (p, v),
-            QP::GT { p, v } => (p, v),
-            QP::GTE { p, v } => (p, v),
-            QP::LT { p, v } => (p, v),
-            QP::LTE { p, v } => (p, v),
+            QP::E { p, v }
+            | QP::GT { p, v }
+            | QP::GTE { p, v }
+            | QP::LT { p, v }
+            | QP::LTE { p, v } => (p, v),
         };
         // Finally, with that out the way, we can
         // order them.
