@@ -322,3 +322,39 @@ fn query_search_short_circuit_empty_scan() -> Result<(), DocDbError> {
     assert_eq!(1, ids.stats.scans, "index scans not short circuited");
     Ok(())
 }
+
+#[test]
+fn query_search_collapse_scans() -> Result<(), DocDbError> {
+    let tmp_dir = tempdir().unwrap();
+    let db = docdb::new_database(tmp_dir.path()).unwrap();
+    insert_test_data(&db)?;
+
+    let ids = query::search_index(
+        &db,
+        vec![
+            query::QP::LTE {
+                p: keypath!["age"],
+                v: tv(40),
+            },
+            query::QP::E {
+                p: keypath!["age"],
+                v: tv(40),
+            },
+            query::QP::E {
+                p: keypath!["age"],
+                v: tv(40),
+            },
+            query::QP::E {
+                p: keypath!["age2"],
+                v: tv(4),
+            },
+            query::QP::E {
+                p: keypath!["age2"],
+                v: tv(4),
+            },
+        ],
+    )?;
+    assert_eq!(0, ids.results.len(), "wrong result count");
+    assert_eq!(2, ids.stats.scans, "index scans collapsed for same field");
+    Ok(())
+}

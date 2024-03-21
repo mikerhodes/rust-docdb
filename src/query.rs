@@ -4,6 +4,7 @@ use sled::Db;
 
 use crate::{
     docdb::DocDbError,
+    encoding::Encodable,
     encoding::{self},
 };
 
@@ -197,12 +198,25 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
 
     // Maybe we use this struct mapped to fields, or have two
     // field -> key maps, one for start and one for end keys.
+    #[derive(Debug)]
     struct Scan {
         skey: Vec<u8>,
         ekey: Vec<u8>,
     }
-    let mut scans: Vec<Scan> = vec![];
+
+    // group the query predicates by the field
+    let mut groups: BTreeMap<Vec<u8>, Vec<Scan>> = BTreeMap::new();
     for qp in q {
+        // these matches are awkward, I wonder if it's possible
+        // to do better in the match, or if, in fact, I'd be better
+        // off with a struct with an `operator` field.
+        let path = match &qp {
+            QP::E { p, .. }
+            | QP::GT { p, .. }
+            | QP::GTE { p, .. }
+            | QP::LT { p, .. }
+            | QP::LTE { p, .. } => p.clone(),
+        };
         let (skey, ekey) = match qp {
             QP::E { p, v } => lookup_eq(p, v),
             QP::GT { p, v } => lookup_gt(p, v),
@@ -210,10 +224,32 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
             QP::LT { p, v } => lookup_lt(p, v),
             QP::LTE { p, v } => lookup_lte(p, v),
         };
-        scans.push(Scan { skey, ekey });
+        let x = (&path).encode();
+        groups.entry(x).or_insert(vec![]).push(Scan { skey, ekey })
     }
 
-    for s in scans {
+    // and now collapse each grouped set of Scans into one scan
+    let mut collapsed_scans = vec![];
+    for (_, scans) in groups {
+        let mut skey: Vec<u8> = vec![encoding::KEY_INDEX - 1];
+        let mut ekey: Vec<u8> = vec![encoding::KEY_INDEX + 1];
+        // TODO this doesn't cover failure modes. I can only think
+        // of one, that of non-overlapping predicate ranges.
+        // Is there a simple way to cover
+        for s in scans {
+            if s.skey > skey {
+                skey = s.skey;
+            }
+            if s.ekey < ekey {
+                ekey = s.ekey;
+            }
+        }
+        collapsed_scans.push(Scan { skey, ekey });
+    }
+
+    println!("collscns: {:?}", &collapsed_scans);
+
+    for s in collapsed_scans {
         n_preds += 1;
         // The next step is to hoist this start/end key generation
         // out of this loop. We can then loop over the predicates,

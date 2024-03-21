@@ -41,7 +41,7 @@ impl Error for DecodeError {}
 // keys for primary document data from index data. They are
 // prefixed to the encoded keys.
 const KEY_DOCUMENT: u8 = 1u8;
-const KEY_INDEX: u8 = 2u8;
+pub(crate) const KEY_INDEX: u8 = 2u8;
 
 // Use a separate SEP for between path components to make
 // it easier to split the path from the other key components.
@@ -182,7 +182,7 @@ pub fn query_upper_bound(p: &Vec<TaggableValue>, v: Option<&TaggableValue>) -> V
 
 // Encodable is a small private trait that helps us encode
 // each type of value we use in our keys
-trait Encodable {
+pub(crate) trait Encodable {
     fn encode(&self) -> Vec<u8>;
 }
 
