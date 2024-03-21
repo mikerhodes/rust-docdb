@@ -197,19 +197,12 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
 
     // Maybe we use this struct mapped to fields, or have two
     // field -> key maps, one for start and one for end keys.
-    // struct Scan {
-    //     skey: Vec<u8>,
-    //     ekey: Vec<u8>,
-    // }
-
+    struct Scan {
+        skey: Vec<u8>,
+        ekey: Vec<u8>,
+    }
+    let mut scans: Vec<Scan> = vec![];
     for qp in q {
-        n_preds += 1;
-        // The next step is to hoist this start/end key generation
-        // out of this loop. We can then loop over the predicates,
-        // grouping the start/end keys by field. Then for each
-        // group, we can collapse down the range to the smallest
-        // range --- or, if there are non-overlapping ranges,
-        // immediately return no matches for this AND.
         let (skey, ekey) = match qp {
             QP::E { p, v } => lookup_eq(p, v),
             QP::GT { p, v } => lookup_gt(p, v),
@@ -217,7 +210,18 @@ pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
             QP::LT { p, v } => lookup_lt(p, v),
             QP::LTE { p, v } => lookup_lte(p, v),
         };
-        let ids = scan(&db, &skey, &ekey)?;
+        scans.push(Scan { skey, ekey });
+    }
+
+    for s in scans {
+        n_preds += 1;
+        // The next step is to hoist this start/end key generation
+        // out of this loop. We can then loop over the predicates,
+        // grouping the start/end keys by field. Then for each
+        // group, we can collapse down the range to the smallest
+        // range --- or, if there are non-overlapping ranges,
+        // immediately return no matches for this AND.
+        let ids = scan(&db, &s.skey, &s.ekey)?;
         stats.scans += 1;
 
         if ids.is_empty() {
