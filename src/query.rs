@@ -1,12 +1,8 @@
-use std::{cmp::Ordering, collections::BTreeMap, rc::Rc};
+use std::{cmp::Ordering, rc::Rc};
 
 use sled::Db;
 
-use crate::{
-    docdb::DocDbError,
-    encoding::Encodable,
-    encoding::{self},
-};
+use crate::{docdb::DocDbError, query_executor::query_execute, query_planner::query_plan};
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum TaggableValue {
@@ -163,182 +159,26 @@ pub struct QueryResult {
     pub stats: QueryStats,
 }
 
-fn query_sort(q: &mut Query) {
-    q.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+// Maybe we use this struct mapped to fields, or have two
+// field -> key maps, one for start and one for end keys.
+#[derive(Debug)]
+pub(crate) struct Scan {
+    pub(crate) skey: Vec<u8>,
+    pub(crate) ekey: Vec<u8>,
 }
 
-pub fn search_index(db: &Db, mut q: Query) -> Result<QueryResult, DocDbError> {
+pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
-
-    // BTreeMap so we return IDs to caller in order
-    let mut result_ids = BTreeMap::new();
-    let mut n_preds = 0;
-    let mut stats = QueryStats { scans: 0 };
-    let mut first_predicate = true;
-
-    // TODO convert all the predicates into a set of
-    // range scans, Scan { startkey, endkey }
-    // then we can later collapse the ranges for the same
-    // keys (using the IndexKey path_prefix method to group
-    // by the paths).
-
-    // Sort by the ordering in the enum, which puts equality
-    // first, which is likely to have a smaller result set
-    // than any range query. This means we likely end up using
-    // a little less memory because of only storing the IDs that
-    // are returned by the first predicate. Not sure if this sorts by the
-    // path and value, as TaggableValue doesn't implement Ord.
-    // https://stackoverflow.com/a/70588789
-    query_sort(&mut q);
-
-    // Unclear we need the fancy sort, given that we just want
-    // to group by the field names and then collapse down the
-    // keys for each.
-
-    // Maybe we use this struct mapped to fields, or have two
-    // field -> key maps, one for start and one for end keys.
-    #[derive(Debug)]
-    struct Scan {
-        skey: Vec<u8>,
-        ekey: Vec<u8>,
-    }
-
-    // group the query predicates by the field
-    let mut groups: BTreeMap<Vec<u8>, Vec<Scan>> = BTreeMap::new();
-    for qp in q {
-        // these matches are awkward, I wonder if it's possible
-        // to do better in the match, or if, in fact, I'd be better
-        // off with a struct with an `operator` field.
-        let path = match &qp {
-            QP::E { p, .. }
-            | QP::GT { p, .. }
-            | QP::GTE { p, .. }
-            | QP::LT { p, .. }
-            | QP::LTE { p, .. } => p.clone(),
-        };
-        let (skey, ekey) = match qp {
-            QP::E { p, v } => lookup_eq(p, v),
-            QP::GT { p, v } => lookup_gt(p, v),
-            QP::GTE { p, v } => lookup_gte(p, v),
-            QP::LT { p, v } => lookup_lt(p, v),
-            QP::LTE { p, v } => lookup_lte(p, v),
-        };
-        let x = (&path).encode();
-        groups.entry(x).or_insert(vec![]).push(Scan { skey, ekey })
-    }
-
-    // and now collapse each grouped set of Scans into one scan
-    let mut collapsed_scans = vec![];
-    for (_, scans) in groups {
-        let mut skey: Vec<u8> = vec![encoding::KEY_INDEX - 1];
-        let mut ekey: Vec<u8> = vec![encoding::KEY_INDEX + 1];
-        // TODO this doesn't cover failure modes. I can only think
-        // of one, that of non-overlapping predicate ranges.
-        // Is there a simple way to cover
-        for s in scans {
-            if s.skey > skey {
-                skey = s.skey;
-            }
-            if s.ekey < ekey {
-                ekey = s.ekey;
-            }
-        }
-        collapsed_scans.push(Scan { skey, ekey });
-    }
-
-    println!("collscns: {:?}", &collapsed_scans);
-
-    for s in collapsed_scans {
-        n_preds += 1;
-        // The next step is to hoist this start/end key generation
-        // out of this loop. We can then loop over the predicates,
-        // grouping the start/end keys by field. Then for each
-        // group, we can collapse down the range to the smallest
-        // range --- or, if there are non-overlapping ranges,
-        // immediately return no matches for this AND.
-        let ids = scan(&db, &s.skey, &s.ekey)?;
-        stats.scans += 1;
-
-        if ids.is_empty() {
-            // Short-circuit evaluation; an empty result set means
-            // this conjunction can't have any results. Stop scanning.
-            return Ok(QueryResult {
-                results: vec![],
-                stats,
-            });
-        }
-
-        for id in ids {
-            let e = result_ids.entry(id).and_modify(|c| *c += 1);
-            if first_predicate {
-                // As no result ID that appears in a later scan but not the
-                // first scan can be in the final result set, don't use memory
-                // to store them.
-                e.or_insert(1);
-            }
-        }
-
-        first_predicate = false;
-    }
-
-    // Only those entries which were found in every index scan
-    // should be in the final result set.
-    let mut results = vec![];
-    for (id, n) in result_ids {
-        if n == n_preds {
-            results.push(id);
-        }
-    }
-
-    Ok(QueryResult { results, stats })
-}
-
-fn lookup_eq(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
-    let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
-    let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
-    (start_key, end_key)
-}
-
-fn lookup_gte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
-    let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
-    let end_key = encoding::encode_index_query_p_end_key(&path);
-    (start_key, end_key)
-}
-
-fn lookup_gt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
-    let start_key = encoding::encode_index_query_pv_end_key(&path, &v);
-    let end_key = encoding::encode_index_query_p_end_key(&path);
-    (start_key, end_key)
-}
-
-fn lookup_lt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
-    let start_key = encoding::encode_index_query_p_start_key(&path);
-    let end_key = encoding::encode_index_query_pv_start_key(&path, &v);
-    (start_key, end_key)
-}
-
-fn lookup_lte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
-    let start_key = encoding::encode_index_query_p_start_key(&path);
-    let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
-    (start_key, end_key)
-}
-
-fn scan(db: &Db, start_key: &[u8], end_key: &[u8]) -> Result<Vec<String>, DocDbError> {
-    let mut ids = vec![];
-    let iter = db.range(start_key..end_key);
-    for i in iter {
-        let (k, _) = i?;
-        match encoding::decode_index_key_docid(&k) {
-            Ok(v) => ids.push(v.to_string()),
-            Err(_) => println!("Couldn't decode docID from {:?}", &k),
-        };
-    }
-    Ok(ids)
+    let scans = query_plan(q);
+    let query_result = query_execute(scans, db)?;
+    Ok(query_result)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::query_executor::scan;
+    use crate::query_planner::{lookup_eq, lookup_gt, lookup_gte, lookup_lt, lookup_lte};
     use crate::{docdb, keypath};
     use serde_json::json;
     use tempfile::tempdir;
@@ -609,5 +449,9 @@ mod tests {
             query_sort(&mut test);
             assert_eq!(expected, test);
         }
+    }
+
+    fn query_sort(q: &mut Query) {
+        q.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     }
 }
