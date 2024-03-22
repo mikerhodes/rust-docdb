@@ -161,7 +161,7 @@ pub struct QueryResult {
 
 // Maybe we use this struct mapped to fields, or have two
 // field -> key maps, one for start and one for end keys.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct Scan {
     pub(crate) skey: Vec<u8>,
     pub(crate) ekey: Vec<u8>,
@@ -170,7 +170,7 @@ pub(crate) struct Scan {
 pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
     // I think Query here is a one-time use thing, so we should own it. Db
     // will be used again and again, so we should borrow it.
-    let scans = query_plan(q);
+    let scans = query_plan(q)?;
     let query_result = query_execute(scans, db)?;
     Ok(query_result)
 }

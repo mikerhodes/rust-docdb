@@ -7,6 +7,7 @@ use crate::pathvalues::get_path_values;
 #[derive(Debug)]
 pub enum DocDbError {
     GenericError,
+    InvalidQuery,
     DocDecode(rmp_serde::decode::Error),
     DocEncode(rmp_serde::encode::Error),
     // A Db error indicates the underlying file
