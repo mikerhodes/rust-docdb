@@ -178,7 +178,9 @@ pub fn search_index(db: &Db, q: Query) -> Result<QueryResult, DocDbError> {
 #[cfg(test)]
 mod tests {
     use crate::query_executor::scan;
-    use crate::query_planner::{lookup_eq, lookup_gt, lookup_gte, lookup_lt, lookup_lte};
+    use crate::query_planner::{
+        scan_range_eq, scan_range_gt, scan_range_gte, scan_range_lt, scan_range_lte,
+    };
     use crate::{docdb, keypath};
     use serde_json::json;
     use tempfile::tempdir;
@@ -213,16 +215,16 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
 
-        let (s, e) = lookup_eq(keypath!["name"], tv("john"));
+        let (s, e) = scan_range_eq(keypath!["name"], tv("john"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
-        let (s, e) = lookup_eq(keypath!["a", "b"], tv(1));
+        let (s, e) = scan_range_eq(keypath!["a", "b"], tv(1));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1"], ids);
-        let (s, e) = lookup_eq(keypath!["a", "b"], tv(2));
+        let (s, e) = scan_range_eq(keypath!["a", "b"], tv(2));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
-        let (s, e) = lookup_eq(keypath!["a", "c"], tv(2));
+        let (s, e) = scan_range_eq(keypath!["a", "c"], tv(2));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
 
@@ -234,36 +236,36 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
 
-        let (s, e) = lookup_gte(keypath!["age"], tv(25));
+        let (s, e) = scan_range_gte(keypath!["age"], tv(25));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1", "doc3"], ids);
-        let (s, e) = lookup_gte(keypath!["name"], tv("mi"));
+        let (s, e) = scan_range_gte(keypath!["name"], tv("mi"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1"], ids);
         // Expected IDs are sorted in index order intentionally
-        let (s, e) = lookup_gte(keypath!["name"], tv("john"));
+        let (s, e) = scan_range_gte(keypath!["name"], tv("john"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gte(keypath!["name"], tv(100_000_000));
+        let (s, e) = scan_range_gte(keypath!["name"], tv(100_000_000));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gte(keypath!["name"], tv(false));
+        let (s, e) = scan_range_gte(keypath!["name"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gte(keypath!["name"], tv(true));
+        let (s, e) = scan_range_gte(keypath!["name"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gte(keypath!["name"], tv("azzzzzzzzz"));
+        let (s, e) = scan_range_gte(keypath!["name"], tv("azzzzzzzzz"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
 
-        let (s, e) = lookup_gte(keypath!["age"], tv("a"));
+        let (s, e) = scan_range_gte(keypath!["age"], tv("a"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
-        let (s, e) = lookup_gte(keypath!["age"], tv(false));
+        let (s, e) = scan_range_gte(keypath!["age"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
-        let (s, e) = lookup_gte(keypath!["age"], tv(true));
+        let (s, e) = scan_range_gte(keypath!["age"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
 
@@ -276,36 +278,36 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
 
-        let (s, e) = lookup_gt(keypath!["age"], tv(24));
+        let (s, e) = scan_range_gt(keypath!["age"], tv(24));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1", "doc3"], ids);
-        let (s, e) = lookup_gt(keypath!["name"], tv("mi"));
+        let (s, e) = scan_range_gt(keypath!["name"], tv("mi"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1"], ids);
         // Expected IDs are sorted in index order intentionally
-        let (s, e) = lookup_gt(keypath!["name"], tv("john"));
+        let (s, e) = scan_range_gt(keypath!["name"], tv("john"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc1"], ids);
-        let (s, e) = lookup_gt(keypath!["name"], tv(100_000_000));
+        let (s, e) = scan_range_gt(keypath!["name"], tv(100_000_000));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gt(keypath!["name"], tv(false));
+        let (s, e) = scan_range_gt(keypath!["name"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gt(keypath!["name"], tv(true));
+        let (s, e) = scan_range_gt(keypath!["name"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
-        let (s, e) = lookup_gt(keypath!["name"], tv("azzzzzzzzz"));
+        let (s, e) = scan_range_gt(keypath!["name"], tv("azzzzzzzzz"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
 
-        let (s, e) = lookup_gt(keypath!["age"], tv("a"));
+        let (s, e) = scan_range_gt(keypath!["age"], tv("a"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
-        let (s, e) = lookup_gt(keypath!["age"], tv(false));
+        let (s, e) = scan_range_gt(keypath!["age"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
-        let (s, e) = lookup_gt(keypath!["age"], tv(true));
+        let (s, e) = scan_range_gt(keypath!["age"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
 
@@ -318,27 +320,27 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
 
-        let (s, e) = lookup_lt(keypath!["age"], tv(40));
+        let (s, e) = scan_range_lt(keypath!["age"], tv(40));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2"], ids);
-        let (s, e) = lookup_lt(keypath!["name"], tv("mi"));
+        let (s, e) = scan_range_lt(keypath!["name"], tv("mi"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
         // Expected IDs are sorted in index order intentionally
-        let (s, e) = lookup_lt(keypath!["name"], tv("johna"));
+        let (s, e) = scan_range_lt(keypath!["name"], tv("johna"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
-        let (s, e) = lookup_lt(keypath!["name"], tv("zaaaaaaaaaa"));
+        let (s, e) = scan_range_lt(keypath!["name"], tv("zaaaaaaaaaa"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
 
-        let (s, e) = lookup_lt(keypath!["age"], tv("a"));
+        let (s, e) = scan_range_lt(keypath!["age"], tv("a"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
-        let (s, e) = lookup_lt(keypath!["age"], tv(false));
+        let (s, e) = scan_range_lt(keypath!["age"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
-        let (s, e) = lookup_lt(keypath!["age"], tv(true));
+        let (s, e) = scan_range_lt(keypath!["age"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
 
@@ -351,27 +353,27 @@ mod tests {
         let db = docdb::new_database(tmp_dir.path()).unwrap();
         insert_test_data(&db)?;
 
-        let (s, e) = lookup_lte(keypath!["age"], tv(40));
+        let (s, e) = scan_range_lte(keypath!["age"], tv(40));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1"], ids);
-        let (s, e) = lookup_lte(keypath!["name"], tv("mi"));
+        let (s, e) = scan_range_lte(keypath!["name"], tv("mi"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
         // Expected IDs are sorted in index order intentionally
-        let (s, e) = lookup_lte(keypath!["name"], tv("johna"));
+        let (s, e) = scan_range_lte(keypath!["name"], tv("johna"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3"], ids);
-        let (s, e) = lookup_lte(keypath!["name"], tv("zaaaaaaaaaa"));
+        let (s, e) = scan_range_lte(keypath!["name"], tv("zaaaaaaaaaa"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc3", "doc1"], ids);
 
-        let (s, e) = lookup_lte(keypath!["age"], tv("a"));
+        let (s, e) = scan_range_lte(keypath!["age"], tv("a"));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(vec!["doc2", "doc1", "doc3"], ids);
-        let (s, e) = lookup_lte(keypath!["age"], tv(false));
+        let (s, e) = scan_range_lte(keypath!["age"], tv(false));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
-        let (s, e) = lookup_lte(keypath!["age"], tv(true));
+        let (s, e) = scan_range_lte(keypath!["age"], tv(true));
         let ids = scan(&db, &s, &e)?;
         assert_eq!(Vec::<String>::new(), ids);
 

@@ -43,11 +43,11 @@ pub(crate) fn query_plan(q: Vec<QP>) -> Result<Vec<Scan>, DocDbError> {
             | QP::LTE { p, .. } => p.clone(),
         };
         let (skey, ekey) = match qp {
-            QP::E { p, v } => lookup_eq(p, v),
-            QP::GT { p, v } => lookup_gt(p, v),
-            QP::GTE { p, v } => lookup_gte(p, v),
-            QP::LT { p, v } => lookup_lt(p, v),
-            QP::LTE { p, v } => lookup_lte(p, v),
+            QP::E { p, v } => scan_range_eq(p, v),
+            QP::GT { p, v } => scan_range_gt(p, v),
+            QP::GTE { p, v } => scan_range_gte(p, v),
+            QP::LT { p, v } => scan_range_lt(p, v),
+            QP::LTE { p, v } => scan_range_lte(p, v),
         };
         let x = (&path).encode();
         groups.entry(x).or_insert(vec![]).push(Scan { skey, ekey })
@@ -86,31 +86,31 @@ pub(crate) fn query_plan(q: Vec<QP>) -> Result<Vec<Scan>, DocDbError> {
 // of planning and executing, but that isn't done right now.
 //
 
-pub(crate) fn lookup_eq(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn scan_range_eq(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
     (start_key, end_key)
 }
 
-pub(crate) fn lookup_gte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn scan_range_gte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
     let start_key = encoding::encode_index_query_pv_start_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
     (start_key, end_key)
 }
 
-pub(crate) fn lookup_gt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn scan_range_gt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
     let start_key = encoding::encode_index_query_pv_end_key(&path, &v);
     let end_key = encoding::encode_index_query_p_end_key(&path);
     (start_key, end_key)
 }
 
-pub(crate) fn lookup_lt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn scan_range_lt(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_start_key(&path, &v);
     (start_key, end_key)
 }
 
-pub(crate) fn lookup_lte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn scan_range_lte(path: Vec<TaggableValue>, v: TaggableValue) -> (Vec<u8>, Vec<u8>) {
     let start_key = encoding::encode_index_query_p_start_key(&path);
     let end_key = encoding::encode_index_query_pv_end_key(&path, &v);
     (start_key, end_key)
