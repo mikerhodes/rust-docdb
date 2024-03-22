@@ -29,7 +29,9 @@ pub(crate) fn query_plan(q: Vec<QP>) -> Result<Vec<Scan>, DocDbError> {
     // is no point carrying out a query.
     //
 
-    // group the query predicates by the field
+    // Map the query predicates into individual range scans
+    // while grouping them by field. This is a nice structure
+    // for later optimisations.
     let mut groups: BTreeMap<Vec<u8>, Vec<Scan>> = BTreeMap::new();
     for qp in q {
         // these matches are awkward, I wonder if it's possible
