@@ -60,16 +60,8 @@ pub(crate) fn query_plan(q: Vec<QP>) -> Result<Vec<Scan>, DocDbError> {
     // disjoint predicates for a given field; we check for this later.
     let mut collapsed_scans = vec![];
     for (_, scans) in groups {
-        let mut skey: Vec<u8> = vec![encoding::KEY_INDEX - 1];
-        let mut ekey: Vec<u8> = vec![encoding::KEY_INDEX + 1];
-        for s in scans {
-            if s.skey > skey {
-                skey = s.skey;
-            }
-            if s.ekey < ekey {
-                ekey = s.ekey;
-            }
-        }
+        let skey = scans.iter().map(|x| x.skey.clone()).max().unwrap();
+        let ekey = scans.iter().map(|x| x.ekey.clone()).min().unwrap();
         collapsed_scans.push(Scan { skey, ekey });
     }
 
