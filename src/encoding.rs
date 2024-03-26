@@ -176,7 +176,7 @@ pub fn query_upper_bound(p: &Vec<TaggableValue>, v: Option<&TaggableValue>) -> V
         k.push(0x00);
         k.extend(v.encode());
     });
-    k.push(0x01); // Use the fact that sep is 0x00 so this is always greater
+    k.push(0x02); // This must be greater than both component and path sep
     k
 }
 
